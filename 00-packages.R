@@ -13,4 +13,5 @@ suppressPackageStartupMessages({
   library(lme4)     # for bootMer() - provides nice interface for parametric bootstrap
   library(boot)     # for boot.ci() - summarizes output of lme4::bootMer()
   library(scales)   # for transparent colors
+  library(snow)     # for parallel computing - makes parametric bootstrap much faster
 })
