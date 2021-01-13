@@ -34,3 +34,39 @@ fit_null_15 = glmmTMB(minijack ~ progeny_wt + (1|sire_id) + (1|dam_id),
 fit_null_16 = glmmTMB(minijack ~ progeny_wt + (1|sire_id) + (1|dam_id),
                       data = subset(dat, year == 2016), family = binomial)
 
+##### PERFORM PARAMETRIC BOOTSTRAP #####
+
+# start a clock
+starttime = Sys.time()
+
+# number of bootstrapped samples per year
+nsim = 2000
+
+# number of cores assigned to the cluster
+# this assumes your computer has at least 9 cores that can accept jobs
+# fewer cores will make the code run more slowly
+# run: parallel::detectCores()
+# to figure out how many your computer has. leave at least one free for other tasks
+ncpus = 9
+
+# initialize a parallel computing cluster
+my_cluster = makeSOCKcluster(ncpus)
+
+# send needed packages to the cluster
+clusterEvalQ(my_cluster, {library("lme4"); library("glmmTMB"); library("stringr")})
+
+# send needed environmental variables to the cluster
+clusterExport(my_cluster, ls())
+
+# set up the random number generator on the cluster
+clusterSetupRNG(my_cluster, type = "RNGstream", seed = rep(1, 6))
+
+# stop the cluster
+stopCluster(my_cluster)
+
+# end the clock
+stoptime = Sys.time()
+
+# calculate the time difference
+format(stoptime - starttime, digits = 2)
+
