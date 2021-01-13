@@ -29,3 +29,19 @@ boot_out_null_14 = readRDS("model-output/boot_out_null_14.rds")
 boot_out_null_15 = readRDS("model-output/boot_out_null_15.rds")
 boot_out_null_16 = readRDS("model-output/boot_out_null_16.rds")
 
+##### CREATE TABLE SUMMARIZING BOOTSTRAP OUTPUT #####
+
+# summarize the bootstrap output from each year separately
+ests_14 = summarize_boot(boot_out_14, boot_out_null_14); ests_14 = cbind(year = 2014, ests_14)
+ests_15 = summarize_boot(boot_out_15, boot_out_null_15); ests_15 = cbind(year = 2015, ests_15)
+ests_16 = summarize_boot(boot_out_16, boot_out_null_16); ests_16 = cbind(year = 2016, ests_16)
+
+# combine into one 
+ests = rbind(ests_14, ests_15, ests_16)
+
+# reorder columns
+ests = ests[,c("year", "type", "id", "estimate", "lwr95", "upr95", "p_val")]
+
+# save to a csv file
+write.csv(ests, file.path(out_dir, "bootstrap-summaries.csv"), row.names = F)
+
