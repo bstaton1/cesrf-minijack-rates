@@ -232,3 +232,99 @@ mtext(side = 2, outer = T, line = 1.5, "Minijack Rate")
 dev.off()
 
 
+##### CREATE FIGURE: RANDOM-EFFECT MINIJACK RATE BY SIRE_ID, UNCERTAINTY, AND DATA #####
+
+# refit models
+fit_14 = glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == 2014), family = binomial)
+fit_15 = glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == 2015), family = binomial)
+fit_16 = glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == 2016), family = binomial)
+
+create_male_re_plot = function(fit, yr, legend1, legend2) {
+  # extract data the model was fitted to
+  frame = fit$frame
+  
+  # retain only unique sire_ids
+  x = frame[!duplicated(frame$sire_id),]
+  
+  # drop the minijack column
+  x = x[,-1]
+  
+  # drop the progeny column
+  x = x[,-2]
+  
+  # set dam_id to NA
+  x$dam_id = NA
+  
+  # set progeny length the mean for that male
+  mn_wt = aggregate(progeny_wt ~ sire_id, data = subset(dat, year == yr), mean)
+  x = merge(x, mn_wt, by = "sire_id")
+  
+  # obtain fitted values that account for male fixed and random effect, but not female
+  preds = predict(fit, newdata = x, type = "link", se.fit = T)
+  
+  x$estimate = expit(preds$fit)
+  x$lwr95ci = expit(preds$fit + qnorm(0.025) * preds$se.fit)
+  x$upr95ci = expit(preds$fit + qnorm(0.975) * preds$se.fit)
+  
+  # sort by fitted value
+  x = x[order(x$estimate),]
+  
+  # create a blank plot
+  par(mar = c(0,0,1,0), tcl = -0.15, mgp = c(2, 0.35, 0))
+  inds = 1:nrow(x)
+  plot(x$estimate ~ inds, ylim = c(0,1), xaxt = "n", yaxt = "n", type = "n", xlab = "", ylab = "", las = 1, main = yr)
+  
+  # set the color for points representing males of different ages
+  cols = c("1" = "salmon", "3" = "royalblue", "4" = "forestgreen", "5" = "orange")
+  tcols = scales::alpha(cols, 0.4)
+  
+  # loop through sire_ids, drawing the fitted value and observed proportions
+  for (j in 1:nrow(x)) {
+    # extract the raw data for this ID
+    agg_sub = subset(agg, sire_id == x$sire_id[j])
+    
+    # draw the point estimate
+    points(x$estimate[j] ~ j, pch = 18, col = cols[as.character(x$sire_age[j])], cex = 1)
+    
+    # draw the approximated 95%ci
+    segments(j, x$lwr95ci[j], j, x$upr95ci[j], col = cols[as.character(x$sire_age[j])])
+    
+    # draw the observed proportions
+    points(agg_sub$p_minijack ~ rep(j, nrow(agg_sub)), col = tcols[as.character(agg_sub$sire_age)], pch = 16, cex = 0.075 * agg_sub$male_smolt)
+  }
+  
+  # draw boundaries to help separate individuals
+  # abline(v = c(1:nrow(x), nrow(x) + 1) - 0.5, col = "grey90")
+  
+  usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+  # text(x = usr[2], y = usr[4] - ydiff * 0.025, pos = 2, labels = yr, font = 2)
+  # 
+  # draw a legend if requested
+  if (legend1) {
+    legend(x = usr[1], y = usr[4], ncol = 2, title = "Male Age", legend = names(cols), pch = 15, pt.cex = 1.5, col = cols, bty = "n")
+  }
+  if (legend2) {
+    mult = 0.075
+    sizes = c(10, 20, 30, 40)
+    legend(x = usr[1], y = usr[4], ncol = 2, legend = sizes, pt.cex = mult * sizes, pch = 16, col = scales::alpha("grey20", 0.25), bty = "n",
+           title = "Male Smolt")
+  }
+  
+  # draw a box
+  box()
+}
+
+png(file.path(out_dir, "random-effect-sire-id.png"), h = 2.5 * ppi, w = 5.62 * ppi, res = ppi)
+par(mfrow = c(1,3), oma = c(2.5,3,0,0.5), lend = "square")
+create_male_re_plot(fit_14, 2014, T, F)
+axis(side = 2, at = seq(0, 1, 0.2), labels = T, las = 2)
+create_male_re_plot(fit_15, 2015, F, T)
+create_male_re_plot(fit_16, 2016, F, F)
+mtext(side = 1, outer = T, line = 0.5, "Individual Sire")
+mtext(side = 1, outer = T, line = 1.35, "(Ranked by Random Effect Size)", cex = 0.75, font = 1)
+mtext(side = 2, outer = T, line = 1.65, "Minijack Rate")
+dev.off()
+
