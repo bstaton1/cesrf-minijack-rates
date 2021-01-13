@@ -14,11 +14,8 @@
 # HTML files (generated from R markdown)
 *.html
 
-# Figure files: these are reproducible from source at any time
-*.pdf
-*.png
-*.jpg
-*.jpeg
+# ignore anything in the ms-output folder (reproducible from source at any time)
+ms-output/*
 
 # ignore anything in the scratch folder (a sandbox)
 scratch/*
