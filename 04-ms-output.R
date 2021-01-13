@@ -328,3 +328,141 @@ mtext(side = 1, outer = T, line = 1.35, "(Ranked by Random Effect Size)", cex = 
 mtext(side = 2, outer = T, line = 1.65, "Minijack Rate")
 dev.off()
 
+##### CREATE FIGURE: RANDOM-EFFECT MINIJACK RATE BY DAM_ID, UNCERTAINTY, AND DATA #####
+
+prep_female_re_for_plot = function(fit, yr, sire_age) {
+  
+  # extract data the model was fitted to
+  frame = fit$frame
+  
+  # retain only unique dam_ids
+  x = frame[!duplicated(frame$dam_id),]
+  
+  # drop the minijack column
+  x = x[,-1]
+  
+  # drop the progeny_length column
+  x = x[,-2]
+  
+  # set sire_id to NA
+  x$sire_id = NA
+  
+  # calculate mean length of progeny
+  age = sire_age
+  
+  if (yr == 2014 & sire_age == 1) {
+    mn_wt = data.frame(dam_id = unique(x$dam_id), progeny_wt = 30)
+  } else {
+    mn_wt = aggregate(progeny_wt ~ dam_id, data = subset(dat, year == yr & sire_age == age), mean)
+  }
+  x = merge(x, mn_wt, by = "dam_id")
+  
+  # obtain fitted values that account for male fixed and random effect, but not female
+  preds = predict(fit, newdata = x, type = "link", se.fit = T)
+  
+  x$estimate = expit(preds$fit)
+  x$lwr95ci = expit(preds$fit + qnorm(0.025) * preds$se.fit)
+  x$upr95ci = expit(preds$fit + qnorm(0.975) * preds$se.fit)
+  
+  # sort by fitted value
+  x = x[order(x$estimate),]
+  x
+}
+
+female_re_plot = function(fit, sire_age, yr, legend, yaxis = TRUE) {
+  x = prep_female_re_for_plot(fit, yr, sire_age)
+  
+  if (sire_age == 1 & yr == 2014) {
+    x = x[-(1:nrow(x)),]
+  }
+  
+  # create a blank plot
+  par(mar = c(0,0,0,0), tcl = -0.15, mgp = c(2, 0.35, 0))
+  inds = 1:nrow(x)
+  
+  if (nrow(x) == 0) {
+    plot(1,1, type = "n", xaxt = "n", ylim = c(0,1), xlim = c(0,1), yaxt = "n")
+    text(x = 0.5, y = 0.4, "No Data", font = 3)
+  } else {
+    plot(x$estimate ~ inds, ylim = c(0,1), xaxt = "n", yaxt = "n", type = "n", xlab = "", ylab = "", las = 1)
+    
+    # set the color for points representing males of different ages
+    # cols = c("1" = "grey20", "3" = "grey20", "4" = "grey20", "5" = "grey20")
+    # tcols = scales::alpha(cols, 0.4)
+    cols = c("1" = "salmon", "3" = "royalblue", "4" = "forestgreen", "5" = "orange")
+    tcols = scales::alpha(cols, 0.4)
+    
+    # loop through sire_ids, drawing the fitted value and observed proportions
+    age = sire_age
+    for (j in 1:nrow(x)) {
+      # extract the raw data for this ID
+      agg_sub = subset(agg, dam_id == x$dam_id[j] & sire_age == age)
+      
+      # draw the point estimate
+      if (nrow(agg_sub) > 0) {
+        points(x$estimate[j] ~ j, pch = 18, cex = 1, col = cols[as.character(sire_age)])
+        
+        # draw the approximated 95%ci
+        segments(j, x$lwr95ci[j], j, x$upr95ci[j], col = cols[as.character(sire_age)])
+      }
+      
+      # draw the observed proportions
+      points(agg_sub$p_minijack ~ rep(j, nrow(agg_sub)), col = tcols[as.character(sire_age)], pch = 16, cex = 0.075 * agg_sub$male_smolt)
+    }
+    
+    # draw boundaries to help separate individuals
+    # abline(v = c(1:nrow(x), nrow(x) + 1) - 0.5, col = "grey90")
+    
+    # usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+    # text(x = usr[2], y = usr[4] - ydiff * 0.025, pos = 2, labels = yr, font = 2)
+  }
+  
+  if (yaxis) {
+    axis(side = 2, at = seq(0.0, 1, 0.2), labels = T, las = 2, cex.axis = 0.9)
+  }
+  
+  # draw a legend if requested
+  if (legend) {
+    mult = 0.075
+    sizes = c(10, 20, 30, 40)
+    legend("top", ncol = 2, legend = sizes, pt.cex = mult * sizes, pch = 16, col = scales::alpha("grey20", 0.25), bty = "n",
+           title = "Male Smolt in Cross")
+    # legend(x = usr[1] + xdiff * 0.175, y = usr[4], title = "Male Age", legend = names(cols), pch = 15, pt.cex = 1.5, col = cols, bty = "n")
+  }
+  
+  # draw a box
+  box()
+}
+
+cols = c("1" = "salmon", "3" = "royalblue", "4" = "forestgreen", "5" = "orange")
+
+png(file.path(out_dir, "random-effect-dam-id.png"), h = 4 * ppi, w = 5.62 * ppi, res = ppi)
+par(mfrow = c(3,4), oma = c(2.5,3.5,3,3))
+for (y in 2014:2016) {
+  if (y == 2014) {
+    fit = fit_14
+  } else {
+    if (y == 2015) {
+      fit = fit_15
+    } else {
+      if (y == 2016) {
+        fit = fit_16
+      }
+    }
+  }
+  for (a in c(1,3,4,5)) {
+    female_re_plot(fit, a, y, ifelse(a == 1 & y == 2014, T, F), ifelse(a == 1, T, F))
+    if (y == 2014) {
+      mtext(side = 3, outer = F, line = 0.25, a, font = 1, col = cols[as.character(a)])
+    }
+    if (a == 5) {
+      mtext(side = 4, outer = F, line = 0.25, y, font = 1)
+    }
+  }
+}
+mtext(side = 1, outer = T, line = 0.5, "Individual Dam", font = 1)
+mtext(side = 1, outer = T, line = 1.35, "(Ranked by Random Effect Size)", cex = 0.75, font = 1)
+mtext(side = 2, outer = T, line = 2, "Minijack Rate")
+mtext(side = 3, outer = T, line = 1.5, "Sire Age", font = 2)
+mtext(side = 4, outer = T, line = 2, "Brood Year", font = 2)
+dev.off()
