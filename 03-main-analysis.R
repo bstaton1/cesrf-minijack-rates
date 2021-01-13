@@ -61,6 +61,36 @@ clusterExport(my_cluster, ls())
 # set up the random number generator on the cluster
 clusterSetupRNG(my_cluster, type = "RNGstream", seed = rep(1, 6))
 
+# perform the bootstrap for 2014: non-null model
+cat("\nRunning Bootstrap: 2014 (non-null model)")
+boot_out_14 = bootMer(fit_14, FUN = function(rand_fit) c(get_probs(rand_fit), get_odds_ratios(rand_fit)), nsim = nsim,
+                      parallel = "snow", cl = my_cluster, ncpus = ncpus, seed = 1)
+
+# perform the bootstrap for 2014: null model
+cat("\nRunning Bootstrap: 2014 (null model)")
+boot_out_null_14 = bootMer(fit_null_14, FUN = sim_fit_from_null, nsim = nsim,
+                           parallel = "snow", cl = my_cluster, ncpus = ncpus, seed = 1)
+
+# perform the bootstrap for 2015: non-null model
+cat("\nRunning Bootstrap: 2015 (non-null model)")
+boot_out_15 = bootMer(fit_15, FUN = function(rand_fit) c(get_probs(rand_fit), get_odds_ratios(rand_fit)), nsim = nsim,
+                      parallel = "snow", cl = my_cluster, ncpus = ncpus, seed = 1)
+
+# perform the bootstrap for 2015: null model
+cat("\nRunning Bootstrap: 2015 (null model)")
+boot_out_null_15 = bootMer(fit_null_15, FUN = sim_fit_from_null, nsim = nsim,
+                           parallel = "snow", cl = my_cluster, ncpus = ncpus, seed = 1)
+
+# perform the bootstrap for 2016: non-null model
+cat("\nRunning Bootstrap: 2016 (non-null model)")
+boot_out_16 = bootMer(fit_16, FUN = function(rand_fit) c(get_probs(rand_fit), get_odds_ratios(rand_fit)), nsim = nsim,
+                      parallel = "snow", cl = my_cluster, ncpus = ncpus, seed = 1)
+
+# perform the bootstrap for 2016: null model
+cat("\nRunning Bootstrap: 2016 (null model)")
+boot_out_null_16 = bootMer(fit_null_16, FUN = sim_fit_from_null, nsim = nsim,
+                           parallel = "snow", cl = my_cluster, ncpus = ncpus, seed = 1)
+
 # stop the cluster
 stopCluster(my_cluster)
 
