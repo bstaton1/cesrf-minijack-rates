@@ -134,3 +134,101 @@ usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
 text(usr[2] + xdiff * 0.015, usr[4] - ydiff * 0.05, pos = 2, labels = 2016, font = 2, cex = 1.2)
 dev.off()
 
+##### CREATE FIGURE: FIXED-EFFECT MINIJACK RATE BY SIRE AGE, UNCERAINTY, AND DATA SPREAD #####
+
+# convert data into aggregated format. each row is a cross
+agg1 = aggregate(minijack ~ cross, data = dat, function(x) length(x)); colnames(agg1)[2] = "male_smolt"
+agg2 = aggregate(minijack ~ cross, data = dat, function(x) sum(x)); colnames(agg2)[2] = "minijack_smolt"
+agg3 = aggregate(year ~ cross, data = dat, function(x) unique(x)); colnames(agg3)[2] = "year"
+agg4 = aggregate(dam_id ~ cross, data = dat, function(x) unique(x))
+agg5 = aggregate(sire_id ~ cross, data = dat, function(x) unique(x))
+agg6 = aggregate(sire_age ~ cross, data = dat, function(x) unique(x))
+
+# combine these data sets into one
+agg = merge(agg1, agg2)
+agg = merge(agg, agg3)
+agg = merge(agg, agg4)
+agg = merge(agg, agg5)
+agg = merge(agg, agg6)
+
+# calculate the observed minijack rate for each cross
+agg$p_minijack = agg$minijack_smolt/agg$male_smolt
+
+# plotting function: create a blank plot
+blank_plot = function(yr) {
+  plot(1,1, type = "n", xlim = c(0.5,4.5), ylim = c(0,1), xaxt = "n", las = 1, xlab = "", ylab = "")
+  axis(side = 1, at = 1:4, labels = c(1,3:5))
+  usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+  text(usr[2] + xdiff * 0.015, usr[4] - ydiff * 0.125, pos = 2, labels = yr, font = 2, cex = 1.2)
+}
+
+# plotting function: add observed data
+add_points = function(age, yr, at_x, col) {
+  # at_x = ifelse(age == 1, 1, age - 1)
+  agg_sub = subset(agg, sire_age == age & year == yr)
+  points(p_minijack ~ I(rep(at_x, nrow(agg_sub)) + runif(nrow(agg_sub), -0.2, 0.2)),
+         pch = 16, col = scales::alpha(col, 0.25), data = agg_sub,
+         cex = 0.075 * male_smolt)
+}
+
+# plotting function: add fixed-effect fitted values
+add_fit = function(age, yr, at_x, col) {
+  # at_x = ifelse(age == 1, 1, age - 1)
+  ests_sub = subset(ests, id == age & type == "probability" & year == yr)
+  
+  if (nrow(ests_sub) > 0) {
+    points(x = at_x, y = ests_sub$estimate, cex = 2, pch = 18, col = col)
+    segments(at_x, ests_sub$lwr95, at_x, ests_sub$upr95, col = col, lwd = 1)
+  }
+}
+
+# plotting function: add a legend
+add_legend = function() {
+  mult = 0.075
+  sizes = c(10, 20, 30, 40)
+  legend("topleft", legend = sizes, pt.cex = mult * sizes, pch = 16, col = scales::alpha("grey20", 0.25), bty = "n",
+         title = "Male Smolt")
+}
+
+# plotting function: add "compact letter display" - significance letters
+add_cld = function(yr, alpha = 0.05) {
+  ests_sub = subset(ests, year == yr & type == "odds_ratio")
+  
+  contrasts = ests_sub$id
+  reject_null = sapply(1:nrow(ests_sub), function(i) ests_sub$p_val[i] < alpha)
+  
+  names(reject_null) = contrasts
+  
+  cld = multcompView::multcompLetters(reject_null)$Letters
+  
+  usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+  
+  ages = as.numeric(names(cld))
+  at_x = ifelse(ages == 1, 1, ages - 1)
+  text(at_x, usr[4] - ydiff * 0.05, labels = cld)
+}
+
+# make the plot
+ages = c(1,3:5)
+years = 2014:2016
+at_x = 1:4
+cols = c("salmon", "royalblue", "forestgreen", "orange")
+
+png(file.path(out_dir, "fixed-effect-sire-age.png"), h = 6 * ppi, w = 2.75 * ppi, res = ppi)
+par(mar = c(1,1,1,1), oma = c(2,3,0,0), mfrow = c(3,1), mgp = c(2,0.35,0), tcl = -0.15, cex.axis = 1.2)
+for (y in 1:3) {
+  blank_plot(years[y])
+  for (a in 1:4) {
+    add_points(ages[a], years[y], at_x[a], cols[a])
+    add_fit(ages[a], years[y], at_x[a], cols[a])
+    if (y == 1 & a == 1) add_legend()
+    if (y == 1 & a == 1) text(x = 1, y = 0.2, labels = "No Data", font = 3)
+  }
+  add_cld(years[y])
+}
+
+mtext(side = 1, outer = T, line = 0.75, "Sire Age")
+mtext(side = 2, outer = T, line = 1.5, "Minijack Rate")
+dev.off()
+
+
