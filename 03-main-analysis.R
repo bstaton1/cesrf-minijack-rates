@@ -100,3 +100,12 @@ stoptime = Sys.time()
 # calculate the time difference
 format(stoptime - starttime, digits = 2)
 
+# save the output objects
+if (!dir.exists("model-output")) dir.create("model-output")
+saveRDS(boot_out_14, "model-output/boot_out_14.rds")
+saveRDS(boot_out_15, "model-output/boot_out_15.rds")
+saveRDS(boot_out_16, "model-output/boot_out_16.rds")
+saveRDS(boot_out_null_14, "model-output/boot_out_null_14.rds")
+saveRDS(boot_out_null_15, "model-output/boot_out_null_15.rds")
+saveRDS(boot_out_null_16, "model-output/boot_out_null_16.rds")
+
