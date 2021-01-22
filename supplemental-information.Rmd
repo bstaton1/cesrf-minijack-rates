@@ -1,0 +1,742 @@
+---
+title: "Supplemental Information"
+subtitle: "Insert the title of the manuscript here"
+author: "Insert the author list here"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: sentence
+---
+
+This document presents additional information about the models fitted for the main-text analysis, as well as some additional exploratory analyses we conducted to search for other variables that may explain between-cross variability in minijack rates.
+
+```{r setup, include = F}
+library(glmmTMB)
+library(DHARMa)
+
+knitr::opts_chunk$set(echo = F, fig.align = "center")
+
+# load necessary packages
+source("00-packages.R")
+
+# read/format data file
+source("01-data-prep.R")
+
+# load in the functions
+source("02-functions.R")
+
+set.seed(1234)
+```
+
+# Progeny Weight vs. Sire Age
+
+Because we incorporated both progeny weight and sire age into our model binary GLMMs, it is important to verify that these two variables do not covary.
+There do not appear to be any systematic differences in progeny weight by sire age in any year.
+
+```{r, fig.width = 2.75, fig.height = 5}
+par(mfrow = c(3,1), mar = c(2,2,2,2), tcl = -0.15, mgp = c(2,0.35,0), oma = c(2,2,0,0))
+boxplot(progeny_wt ~ sire_age, data = subset(dat, year == 2014), main = "2014", ylim = c(6,80), xlab = "", ylab = "", outline = F)
+boxplot(progeny_wt ~ sire_age, data = subset(dat, year == 2015), main = "2015", ylim = c(6,80), xlab = "", ylab = "", outline = F)
+boxplot(progeny_wt ~ sire_age, data = subset(dat, year == 2016), main = "2016", ylim = c(6,80), xlab = "", ylab = "", outline = F)
+mtext(side = 1, outer = T, line = 1, "Sire Age")
+mtext(side = 2, outer = T, line = 0.5, "Progeny Weight (g)")
+```
+
+```{r, eval = F, fig.width = 3.5, fig.height = 5}
+# **What about also grouped by minijack status?**
+
+# Again, it appears that no important patterns arise with respect to sire age. The groups are labeled "minijack.sire_age", so 0.3 means not minijack with age 3 sire; 1.3 means minijack with age 3 sire. Within a sire age, the progeny that were minijacks tended to be heavier, but this is not a problem for the analysis -- it will be captured by the coefficient for progeny weight.
+
+par(mfrow = c(3,1), mar = c(2,2,2,2), tcl = -0.15, mgp = c(2,0.35,0))
+boxplot(progeny_wt ~ minijack:sire_age, data = subset(dat, year == 2014), main = "2014", ylim = range(dat$progeny_wt))
+boxplot(progeny_wt ~ minijack:sire_age, data = subset(dat, year == 2015), main = "2015", ylim = range(dat$progeny_wt))
+boxplot(progeny_wt ~ minijack:sire_age, data = subset(dat, year == 2016), main = "2016", ylim = range(dat$progeny_wt))
+```
+
+# Summaries of the Full Models {.tabset .tabset-fade .tabset-pills}
+
+This section shows the summary of each of the models with both progeny weight and sire age included as covariates.
+The code to fit one of the models is as follows (with `YEAR` replaced with the year of interest):
+
+```{r, echo = T, eval = F}
+glmmTMB::glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == YEAR), family = binomial)
+```
+
+```{r}
+fit_14 = glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == 2014), family = binomial)
+fit_15 = glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == 2015), family = binomial)
+fit_16 = glmmTMB(minijack ~ sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                 data = subset(dat, year == 2016), family = binomial)
+```
+
+## 2014
+
+```{r}
+summary(fit_14)
+```
+
+## 2015
+
+```{r}
+summary(fit_15)
+```
+
+## 2016
+
+```{r}
+summary(fit_16)
+```
+
+# Model Diagnostics {.tabset .tabset-pills .tabset-fade}
+
+## Residuals {.tabset .tabset-pills .tabset-fade}
+
+This section shows residual diagnostics from the full model fitted in each year (obtained using the 'DHARMa' package).
+All models for each year passed the formal tests for uniformity of residuals, over-dispersion, and presence of outliers.
+When residuals are plotted against the progeny weight, there were some divergences from the theoretical quantiles detected, but given these relationships are driven by the rare large or small individual weights, we were not concerned by them.
+
+### 2014 {.tabset .tabset-pills .tabset-fade}
+
+```{r}
+resids = simulateResiduals(fit_14, n = 1000)
+```
+
+#### QQ-plot
+
+```{r, fig.width = 5, fig.height = 5}
+plotQQunif(resids)
+```
+
+#### Residuals vs. Sire Age
+
+```{r, fig.width = 5, fig.height = 5}
+plotResiduals(resids, form = fit_14$frame$sire_age, ylab = "Scaled Residual", xlab = "Sire Age")
+abline(h = c(0.25, 0.5, 0.75), lty = 3)
+```
+
+#### Residuals vs. Progeny Weight
+
+```{r, fig.width = 5, fig.height = 5}
+plotResiduals(resids, form = fit_14$frame$progeny_wt, ylab = "Scaled Residual", xlab = "Progeny Weight")
+```
+
+### 2015 {.tabset .tabset-pills .tabset-fade}
+
+```{r}
+resids = simulateResiduals(fit_15, n = 1000)
+```
+
+#### QQ-plot
+
+```{r, fig.width = 5, fig.height = 5}
+plotQQunif(resids)
+```
+
+#### Residuals vs. Sire Age
+
+```{r, fig.width = 5, fig.height = 5}
+plotResiduals(resids, form = fit_15$frame$sire_age, ylab = "Scaled Residual", xlab = "Sire Age")
+abline(h = c(0.25, 0.5, 0.75), lty = 3)
+```
+
+#### Residuals vs. Progeny Weight
+
+```{r, fig.width = 5, fig.height = 5}
+plotResiduals(resids, form = fit_15$frame$progeny_wt, ylab = "Scaled Residual", xlab = "Progeny Weight")
+```
+
+### 2016 {.tabset .tabset-pills .tabset-fade}
+
+```{r}
+resids = simulateResiduals(fit_16, n = 1000)
+```
+
+#### QQ-plot
+
+```{r, fig.width = 5, fig.height = 5}
+plotQQunif(resids)
+```
+
+#### Residuals vs. Sire Age
+
+```{r, fig.width = 5, fig.height = 5}
+plotResiduals(resids, form = fit_16$frame$sire_age, ylab = "Scaled Residual", xlab = "Sire Age")
+abline(h = c(0.25, 0.5, 0.75), lty = 3)
+```
+
+#### Residuals vs. Progeny Weight
+
+```{r, fig.width = 5, fig.height = 5}
+plotResiduals(resids, form = fit_16$frame$progeny_wt, ylab = "Scaled Residual", xlab = "Progeny Weight")
+```
+
+## Random Effect Patterns {.tabset .tabset-fade .tabset-pills}
+
+This section investigates whether there are patterns in the random effect estimates with other covariates.
+This is a check to make sure that the model has not explained something with random effects that should perhaps be done with fixed effects.
+Based on these figures, we did not detect any issues.
+
+```{r,}
+# extract the random effects from each model and combine across years: males
+male_re_14 = ranef(fit_14)$cond$sire_id; male_re_14$sire_id = rownames(male_re_14)
+male_re_15 = ranef(fit_15)$cond$sire_id; male_re_15$sire_id = rownames(male_re_15)
+male_re_16 = ranef(fit_16)$cond$sire_id; male_re_16$sire_id = rownames(male_re_16)
+male_re = rbind(male_re_14, male_re_15, male_re_16)
+colnames(male_re) = c("re", "sire_id")
+
+# extract the random effects from each model and combine across years: females
+female_re_14 = ranef(fit_14)$cond$dam_id; female_re_14$dam_id = rownames(female_re_14)
+female_re_15 = ranef(fit_15)$cond$dam_id; female_re_15$dam_id = rownames(female_re_15)
+female_re_16 = ranef(fit_16)$cond$dam_id; female_re_16$dam_id = rownames(female_re_16)
+female_re = rbind(female_re_14, female_re_15, female_re_16)
+colnames(female_re) = c("re", "dam_id")
+
+# merge with the year/age information
+male_ids = subset(dat, !duplicated(sire_id))[,c("year", "sire_id", "sire_age", "sire_POH")]
+male_re = merge(male_ids, male_re, by = "sire_id")
+female_ids = subset(dat, !duplicated(dam_id))[,c("year", "dam_id", "dam_POH")]
+female_re = merge(female_ids, female_re, by = "dam_id")
+```
+
+### By Sire Age
+
+This plot groups the random effect estimates by age and year.
+The box for each age is approximately centered around 0 for each age, which is what we are looking for to pass this visual test.
+
+```{r, fig.width = 2.75, fig.height = 6}
+# create boxplots
+par(mfrow = c(3,1), mar = c(2,2,2,2), oma = c(2,2,0,0))
+boxplot(re ~ sire_age, data = subset(male_re, year == 2014), main = 2014, outline = F, ylim = max(abs(male_re$re)) * c(-1,1)); abline(h = 0, lty = 2)
+boxplot(re ~ sire_age, data = subset(male_re, year == 2015), main = 2015, outline = F, ylim = max(abs(male_re$re)) * c(-1,1)); abline(h = 0, lty = 2)
+boxplot(re ~ sire_age, data = subset(male_re, year == 2016), main = 2016, outline = F, ylim = max(abs(male_re$re)) * c(-1,1)); abline(h = 0, lty = 2)
+mtext(side = 1, outer = T, line = 1, "Sire Age")
+mtext(side = 2, outer = T, line = 0.75, "Sire Random Effect")
+```
+
+### By Sire Length
+
+Here we are looking to see if sires that are larger/smaller than average for their age have systematically different values of the random effect.
+
+```{r, fig.width = 3.5, fig.height = 6}
+# rescale male length by age
+male_re$sire_POH_scaled = NA
+male_re$sire_POH_scaled = ifelse(male_re$sire_age == 1, male_re$sire_POH - mean(male_re$sire_POH[male_re$sire_age == 1], na.rm = T), male_re$sire_POH_scaled)
+male_re$sire_POH_scaled = ifelse(male_re$sire_age == 3, male_re$sire_POH - mean(male_re$sire_POH[male_re$sire_age == 3], na.rm = T), male_re$sire_POH_scaled)
+male_re$sire_POH_scaled = ifelse(male_re$sire_age == 4, male_re$sire_POH - mean(male_re$sire_POH[male_re$sire_age == 4], na.rm = T), male_re$sire_POH_scaled)
+male_re$sire_POH_scaled = ifelse(male_re$sire_age == 5, male_re$sire_POH - mean(male_re$sire_POH[male_re$sire_age == 5], na.rm = T), male_re$sire_POH_scaled)
+
+cols = scales::alpha(c("1" = "salmon", "3" = "royalblue", "4" = "forestgreen", "5" = "orange"), 0.6)
+
+par(mfrow = c(3,1), mar = c(2,2,2,2), oma = c(2,2,0,0))
+plot(re ~ sire_POH_scaled, data = subset(male_re, year == 2014), col = cols[as.character(sire_age)], pch = 16, main = "2014", cex = 1.4); abline(h = 0, lty = 2)
+plot(re ~ sire_POH_scaled, data = subset(male_re, year == 2015), col = cols[as.character(sire_age)], pch = 16, main = "2015", cex = 1.4); abline(h = 0, lty = 2)
+legend("topleft", legend = names(cols), col = cols, pch = 16, pt.cex = 1.4, bty = "n", title = "Sire Age")
+plot(re ~ sire_POH_scaled, data = subset(male_re, year == 2016), col = cols[as.character(sire_age)], pch = 16, main = "2016", cex = 1.4); abline(h = 0, lty = 2)
+mtext(side = 1, outer = T, line = 1, "Sire POH (Dif. from Age-Specific Mean)")
+mtext(side = 2, outer = T, line = 0.75, "Sire Random Effect")
+```
+
+### By Dam Length
+
+Here we are looking to see if larger/smaller dams (they are all age 4) have systematically higher/lower random effects.
+
+```{r, fig.width = 3.5, fig.height = 6, echo = F}
+par(mfrow = c(3,1), mar = c(2,2,2,2), oma = c(2,2,0,0))
+plot(re ~ dam_POH, data = subset(female_re, year == 2014), main = 2014, pch = 16, col = scales::alpha("grey25", 0.4), cex = 1.4); abline(h = 0, lty = 2)
+plot(re ~ dam_POH, data = subset(female_re, year == 2015), main = 2015, pch = 16, col = scales::alpha("grey25", 0.4), cex = 1.4); abline(h = 0, lty = 2)
+plot(re ~ dam_POH, data = subset(female_re, year == 2016), main = 2016, pch = 16, col = scales::alpha("grey25", 0.4), cex = 1.4); abline(h = 0, lty = 2)
+mtext(side = 1, outer = T, line = 1, "Dam POH (Raw)")
+mtext(side = 2, outer = T, line = 0.75, "Dam Random Effect")
+```
+
+# Auxiliary Analyses {.tabset .tabset-pills .tabset-fade}
+
+## (1) Effects of Female Size {.tabset .tabset-pills .tabset-fade}
+
+In this auxiliary analysis, we are interested in quantifying whether there is an effect of the size of the female parent.
+Into the model, we introduce the covariate `dam_POH`, which is the dam post-orbital hypural length.
+Based on the relationship between `dam_POH` and `dam_FL` (dam fork length), it seems these variables are proportional and that either would suffice:
+
+```{r, echo = F, fig.width = 4, fig.height = 4}
+par(mar = c(3,3,1,1), tcl = -0.15, mgp = c(2,0.35,0), lend = "square")
+plot(dam_POH ~ dam_FL, data = dat, pch = 16, 
+     col = scales::alpha("grey25", 0.25),
+     xlim = range(dat[,c("dam_POH", "dam_FL")]),
+     ylim = range(dat[,c("dam_POH", "dam_FL")]), las = 1)
+abline(c(0,1), lty = 2)   
+```
+
+```{r}
+aux_1_14 = glmmTMB(minijack ~ dam_POH + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2014))
+aux_1_15 = glmmTMB(minijack ~ dam_POH + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2015))
+aux_1_16 = glmmTMB(minijack ~ dam_POH + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2016))
+```
+
+We fit the same model with progeny weight and sire age, but this time, we include an additional fixed effect for the length of each dam.
+The first thing to note is that incorporating the `dam_POH` covariate did not markedly reduce the magnitude of the female random effect variability from the models that did not include `dam_POH`.
+If `dam_POH` was an important attribute for explaining why some females produced more or fewer than expected minijacks, then we would expect these variability terms to become smaller when `dam_POH` is included in the model.
+
+```{r}
+get_re_sig = function(fit) {
+  x = VarCorr(fit)
+  c(sire_id = sqrt(x$cond$sire_id[1]), dam_id = sqrt(x$cond$dam_id[1]))
+}
+
+aux_re_sig = rbind(
+  get_re_sig(aux_1_14),
+  get_re_sig(aux_1_15),
+  get_re_sig(aux_1_16)
+)
+reg_re_sig = rbind(
+  get_re_sig(fit_14),
+  get_re_sig(fit_15),
+  get_re_sig(fit_16)
+)
+
+sigs = cbind(reg_re_sig[,"sire_id"], aux_re_sig[,"sire_id"], reg_re_sig[,"dam_id"], aux_re_sig[,"dam_id"])
+
+colnames(sigs) = c("W/O Dam Size", "W/ Dam Size", "W/O Dam Size", "W/ Dam Size")
+rownames(sigs) = c(2014, 2015, 2016)
+
+knitr::kable(sigs, "html", digits = 2) %>%
+  kableExtra::kable_styling(full_width = F, bootstrap_options = "condensed") %>%
+  kableExtra::add_header_above(c(" " = 1, "Sires" = 2, "Dams" = 2))
+```
+
+The second thing to note is that the size of the `dam_POH` effect (especially relative to the standard error) is small for each fit:
+
+```{r, echo = F}
+ests = rbind(
+  "2014" = summary(aux_1_14)$coef$cond["dam_POH",c("Estimate", "Std. Error")],
+  "2015" = summary(aux_1_15)$coef$cond["dam_POH",c("Estimate", "Std. Error")],
+  "2016" = summary(aux_1_16)$coef$cond["dam_POH",c("Estimate", "Std. Error")]
+)
+
+knitr::kable(ests, "html", digits = 2) %>%
+  kableExtra::kable_styling(full_width = F, bootstrap_options = "condensed")
+```
+
+In all years the standard error is at least twice as large as the estimate itself, suggesting there is no hope for statistical significance.
+Keep in mind that these estimates represent log odds ratios.
+For example, for 2015, the estimate of `r round(summary(aux_1_15)$coef$cond["dam_POH",c("Estimate")], 3)` indicates that, all else equal, a cross involving a dam with POH of 61 is `r round(exp(summary(aux_1_15)$coef$cond["dam_POH",c("Estimate")]), 3)` times as likely to produce minijack progeny than a cross involving a dam with POH of 60.
+This statement is true regardless of the sizes of females (as long as they are 1cm apart), the sire age, or the weight of the progeny (since there are no interactions).
+
+This is not terribly informative on its own, as it doesn't account for the range of female sizes involved in the crosses.
+Next, we calculate and plot the probabilities for producing minijack progeny from crosses involving males of each age and between the largest and smallest females found in each year-specific data set.
+These calculations are done at the average progeny weight produced by all crosses each year.
+
+```{r, echo = F}
+# function to create prediction data set
+create_pred_data_aux_1 = function(fit) {
+  # build basic prediction data: male ages only
+  pred_data = create_pred_data(fit)
+  
+  # extract the dam_POH used in fitting the model
+  dam_POH = fit$frame$dam_POH
+  
+  # create a new prediction data set
+  pred_data = expand.grid(sire_age = unique(pred_data$sire_age), progeny_wt = unique(pred_data$progeny_wt), dam_POH = c(min(dam_POH), max(dam_POH)))
+  pred_data$sire_id = NA
+  pred_data$dam_id = NA
+  
+  # return it
+  pred_data
+}
+
+# function to create predictions
+create_predictions_aux_1 = function(fit) {
+  
+  # create prediction data
+  pred_data = create_pred_data_aux_1(fit)
+  
+  # produce predictions (fixed effects only)
+  preds = predict(fit, pred_data, re.form = NA, type = "link", se.fit = T)
+  
+  # drop out the id columns: not needed
+  pred_data = pred_data[,-c(4,5)]
+  
+  # transform predictions from link to response scale: point estimate and intervals
+  pred_data$mean = expit(preds$fit)
+  pred_data$lwr95ci = expit(preds$fit + qnorm(0.025) * preds$se.fit)
+  pred_data$upr95ci = expit(preds$fit + qnorm(0.975) * preds$se.fit)
+  
+  # return predictions
+  pred_data
+}
+
+# a function to make a barplot for one year's fit
+aux_1_barplot = function(preds, yr) {
+  
+  # extract/format the estimates from the input
+  means = as.matrix(reshape2::dcast(preds, dam_POH ~ sire_age, value.var = "mean")[,-1])
+  lwrs = as.matrix(reshape2::dcast(preds, dam_POH ~ sire_age, value.var = "lwr95ci")[,-1])
+  uprs = as.matrix(reshape2::dcast(preds, dam_POH ~ sire_age, value.var = "upr95ci")[,-1])
+  
+  # create empty age-1 placeholders if the year is 2014
+  # so all plots have equal dimensions
+  if (yr == 2014) {
+    means = cbind("1" = c(NA, NA), means)
+    lwrs = cbind("1" = c(NA, NA), lwrs)
+    uprs = cbind("1" = c(NA, NA), uprs)
+  }
+
+  par(mar = c(1,3,1,1), tcl = -0.15, mgp = c(2,0.35,0), lend = "square", ljoin = "mitre")
+  mp = barplot(means, beside = T, ylim = c(0,1.2), col = c("grey60", "grey80"), border = NA, las = 1, yaxt = "n")
+  usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+  text(x = usr[2], y = usr[4] - ydiff * 0.05, labels = yr, font = 2, pos = 2)
+  segments(mp, lwrs, mp, uprs, col = c("grey40", "grey60"))
+  segments(usr[1], usr[3], usr[2], usr[3], xpd = T)
+  axis(side = 1, at = colSums(mp)/2, labels = F)
+  axis(side = 2, at = seq(0, 1, 0.2), labels = T, las = 2)
+  legend("top", horiz = T, title = "Dam POH (cm)",
+         legend = sort(unique(preds$dam_POH)), pch = 15,
+         col = c("grey60", "grey80"), pt.cex = 2, bty = "n")
+  if (yr == 2014) {
+    text(x = sum(mp[,1])/2, y = 0.4, labels = "No Data", font = 3)
+  }
+}
+```
+
+In this plot, each panel corresponds to a year, each group of two bars represents crosses involving a sire of a given age, dark bars represent crosses with a dam of the smallest POH observed that year, and light bars represent crosses involving dams of the largest POH observed that year.
+The legend indicates these sizes.
+Error bars represent 95% confidence intervals.
+Based on this output, we conclude that dam size is not an important variable in determining minijack rate in our crosses.
+
+```{r, fig.width = 3.5, fig.height = 6, echo = F}
+par(mfrow = c(3,1), oma = c(2,2,0,0))
+aux_1_barplot(create_predictions_aux_1(aux_1_14), yr = 2014)
+aux_1_barplot(create_predictions_aux_1(aux_1_15), yr = 2015)
+aux_1_barplot(create_predictions_aux_1(aux_1_16), yr = 2016)
+mtext(side = 1, outer = T, line = 0.5, "Sire Age")
+mtext(side = 2, outer = T, line = 0, "Minijack Rate")
+```
+
+## (2) Effects of Spawn Date
+
+For this auxiliary analysis, we are interested in quantifying whether there is an effect of the date the cross was made.
+We first look at the distribution of spawn dates across years:
+
+```{r, echo = F, fig.width = 3.5, fig.height = 6}
+par(mfrow = c(3,1), xaxs = "i", yaxs = "i", mar = c(2,2,2,2), oma = c(2,2,0,0))
+
+agg = dat[!duplicated(dat$cross),]
+
+breaks = seq(min(agg$spawn_doy), max(agg$spawn_doy), by = 1)
+at_x = seq(min(breaks), max(breaks), by = 5)
+lab_x_14 = StatonMisc::doy2date(at_x, 2014, F, F)
+lab_x_15 = StatonMisc::doy2date(at_x, 2015, F, F)
+lab_x_16 = StatonMisc::doy2date(at_x, 2016, F, F)
+
+hist(agg$spawn_doy[agg$year == 2014], xlim = range(agg$spawn_doy), xaxt = "n", main = 2014, ylab = "", las = 1, breaks = breaks, border = NA, col = "grey60")
+axis(side = 1, at_x, lab_x_14)
+hist(agg$spawn_doy[agg$year == 2015], xlim = range(agg$spawn_doy), xaxt = "n", breaks = breaks, main = 2015, ylab = "", las = 1, border = NA, col = "grey60")
+axis(side = 1, at_x, lab_x_15)
+hist(agg$spawn_doy[agg$year == 2016], xlim = range(agg$spawn_doy), xaxt = "n", breaks = breaks, main = 2016, ylab = "", las = 1, border = NA, col = "grey60")
+axis(side = 1, at_x, lab_x_16)
+
+mtext(side = 1, outer = T, line = 0.5, "Spawn Date")
+mtext(side = 2, outer = T, line = 0.5, "Number of Crosses Per Day")
+```
+
+Based on this figure, it seems like spawning crosses appear to have been performed in "pulses" rather than as a steady flow across the spawning period.
+For the auxiliary analysis, we will still treat the `spawn_doy` variable as continuous, just as for the `dam_POH` variable for the previous auxiliary analysis.
+
+```{r}
+aux_2_14 = glmmTMB(minijack ~ spawn_doy + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2014))
+aux_2_15 = glmmTMB(minijack ~ spawn_doy + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2015))
+aux_2_16 = glmmTMB(minijack ~ spawn_doy + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2016))
+```
+
+We fit the same model with progeny weight and sire age, but this time, we include an additional fixed effect for the date the cross occurred on.
+The first thing to note is that the size of the `spawn_doy` effect (especially relative to the standard error) is not as small relative to the estimate as it was for the dam POH analyses, indicating this variable may be more important.
+
+```{r, echo = F}
+ests = rbind(
+  "2014" = summary(aux_2_14)$coef$cond["spawn_doy",c("Estimate", "Std. Error")],
+  "2015" = summary(aux_2_15)$coef$cond["spawn_doy",c("Estimate", "Std. Error")],
+  "2016" = summary(aux_2_16)$coef$cond["spawn_doy",c("Estimate", "Std. Error")]
+)
+
+knitr::kable(ests, "html", digits = 2) %>%
+  kableExtra::kable_styling(full_width = F, bootstrap_options = "condensed")
+```
+
+The interpretation of these effects is the same as in other analyses: they are log odds ratios, so for every one day that passes, we expect the odds of having minijack progeny to change by a factor of `exp(estimate)`.
+Positive numbers indicate the odds increase as the days go by.
+
+Again, it is probably more informative to look over the range of spawn dates used each year, and compare the minijack probability (grouped again by sire age) between the first and last spawn dates each year.
+These calculations again use the average progeny weight from all crosses that year.
+
+```{r, echo = F}
+# function to create prediction data set
+create_pred_data_aux_2 = function(fit) {
+  # build basic prediction data: male ages only
+  pred_data = create_pred_data(fit)
+  
+  # extract the dam_POH used in fitting the model
+  spawn_doy = fit$frame$spawn_doy
+  
+  # create a new prediction data set
+  pred_data = expand.grid(sire_age = unique(pred_data$sire_age), progeny_wt = unique(pred_data$progeny_wt), spawn_doy = c(min(spawn_doy), max(spawn_doy)))
+  pred_data$sire_id = NA
+  pred_data$dam_id = NA
+  
+  # return it
+  pred_data
+}
+
+# function to create predictions
+create_predictions_aux_2 = function(fit) {
+  
+  # create prediction data
+  pred_data = create_pred_data_aux_2(fit)
+  
+  # produce predictions (fixed effects only)
+  preds = predict(fit, pred_data, re.form = NA, type = "link", se.fit = T)
+  
+  # drop out the id columns: not needed
+  pred_data = pred_data[,-c(4,5)]
+  
+  # transform predictions from link to response scale: point estimate and intervals
+  pred_data$mean = expit(preds$fit)
+  pred_data$lwr95ci = expit(preds$fit + qnorm(0.025) * preds$se.fit)
+  pred_data$upr95ci = expit(preds$fit + qnorm(0.975) * preds$se.fit)
+  
+  # return predictions
+  pred_data
+}
+
+# a function to make a barplot for one year's fit
+aux_2_barplot = function(preds, yr) {
+  
+  # extract/format the estimates from the input
+  means = as.matrix(reshape2::dcast(preds, spawn_doy ~ sire_age, value.var = "mean")[,-1])
+  lwrs = as.matrix(reshape2::dcast(preds, spawn_doy ~ sire_age, value.var = "lwr95ci")[,-1])
+  uprs = as.matrix(reshape2::dcast(preds, spawn_doy ~ sire_age, value.var = "upr95ci")[,-1])
+  
+  # create empty age-1 placeholders if the year is 2014
+  # so all plots have equal dimensions
+  if (yr == 2014) {
+    means = cbind("1" = c(NA, NA), means)
+    lwrs = cbind("1" = c(NA, NA), lwrs)
+    uprs = cbind("1" = c(NA, NA), uprs)
+  }
+
+  par(mar = c(1,3,1,1), tcl = -0.15, mgp = c(2,0.35,0), lend = "square", ljoin = "mitre")
+  mp = barplot(means, beside = T, ylim = c(0,1.2), col = c("grey60", "grey80"), border = NA, las = 1, yaxt = "n")
+  usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+  text(x = usr[2], y = usr[4] - ydiff * 0.05, labels = yr, font = 2, pos = 2)
+  segments(mp, lwrs, mp, uprs, col = c("grey40", "grey60"))
+  segments(usr[1], usr[3], usr[2], usr[3], xpd = T)
+  axis(side = 1, at = colSums(mp)/2, labels = F)
+  axis(side = 2, at = seq(0, 1, 0.2), labels = T, las = 2)
+  legend("top", horiz = T, title = "Spawn Date",
+         legend = StatonMisc::doy2date(sort(unique(preds$spawn_doy)), year = yr, F, F), pch = 15,
+         col = c("grey60", "grey80"), pt.cex = 2, bty = "n")
+  if (yr == 2014) {
+    text(x = sum(mp[,1])/2, y = 0.4, labels = "No Data", font = 3)
+  }
+}
+```
+
+In this plot, each panel corresponds to a year, each group of two bars represents crosses involving a sire of a given age, dark bars represent crosses that occurred on the earliest spawn date of each year, and light bars represent crosses that occurred on the latest spawn date of each year.
+The legend indicates these dates.
+Error bars represent 95% confidence intervals.
+
+The effect is fairly strong in 2015 and 2016, but non-existent in 2014.
+Given the highly mixed nature of the findings across years (no effect in 2014, and opposite effects in 2015/2016) we have a hard time placing much confidence in these finding and saying it is a general conclusion that later spawn dates influence minijack proportions.
+
+```{r, fig.width = 3.5, fig.height = 6, echo = F}
+par(mfrow = c(3,1), oma = c(2,2,0,0))
+aux_2_barplot(create_predictions_aux_2(aux_2_14), yr = 2014)
+aux_2_barplot(create_predictions_aux_2(aux_2_15), yr = 2015)
+aux_2_barplot(create_predictions_aux_2(aux_2_16), yr = 2016)
+mtext(side = 1, outer = T, line = 0.5, "Sire Age")
+mtext(side = 2, outer = T, line = 0, "Minijack Rate")
+```
+
+## (3) Effects of Egg Size {.tabset .tabset-pills .tabset-fade}
+
+For this auxiliary analysis, we are interested in quantifying whether there is an effect of the average size of eggs produced by each dam (weight, in grams).
+We first look at the variability in egg mass across years:
+
+```{r, echo = F, fig.width = 6, fig.height = 4}
+par(mar = c(3,3,1,1), tcl = -0.15, mgp = c(2,0.35,0))
+
+boxplot(egg_wt ~ year, data = dat, las = 1, xlab = "Year", ylab = "Avg. Egg Weight (g)")
+```
+
+Based on this figure, it seems like average egg size (across dams) doesn't vary too much across years, but the variability across dams in 2016 is larger than in 2014 and 2015.
+
+```{r}
+aux_3_14 = glmmTMB(minijack ~ egg_wt + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2014))
+aux_3_15 = glmmTMB(minijack ~ egg_wt + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2015))
+aux_3_16 = glmmTMB(minijack ~ egg_wt + sire_age + progeny_wt + (1|sire_id) + (1|dam_id),
+                   family = binomial, data = subset(dat, year == 2016))
+```
+
+We fit the same model with progeny weight and sire age, but this time, we include an additional fixed effect for the average weight of each dam's eggs.
+The first thing to note is that incorporating the `egg_wt` covariate did not markedly reduce the magnitude of the dam random effect variability from the models that did not include `egg_wt`.
+If `egg_wt` was an important attribute for explaining why some dams produced more or less than expected minijacks, then we would expect these variability terms to become much smaller when `egg_wt` is included in the model.
+Although we do see some reductions upon introducing the fixed effect of `egg_wt`, the reduction is fairly moderate, and not nearly to an extent that would suggest that egg weight explains most of the variability in dam-specific effects.
+
+```{r}
+get_re_sig = function(fit) {
+  x = VarCorr(fit)
+  c(sire_id = sqrt(x$cond$sire_id[1]), dam_id = sqrt(x$cond$dam_id[1]))
+}
+
+aux_re_sig = rbind(
+  get_re_sig(aux_3_14),
+  get_re_sig(aux_3_15),
+  get_re_sig(aux_3_16)
+)
+reg_re_sig = rbind(
+  get_re_sig(fit_14),
+  get_re_sig(fit_15),
+  get_re_sig(fit_16)
+)
+
+sigs = cbind(reg_re_sig[,"sire_id"], aux_re_sig[,"sire_id"], reg_re_sig[,"dam_id"], aux_re_sig[,"dam_id"])
+
+colnames(sigs) = c("W/O Egg Size", "W/ Egg Size", "W/O Egg Size", "W/ Egg Size")
+rownames(sigs) = c(2014, 2015, 2016)
+
+knitr::kable(sigs, "html", digits = 2) %>%
+  kableExtra::kable_styling(full_width = F, bootstrap_options = "condensed") %>%
+  kableExtra::add_header_above(c(" " = 1, "Sires" = 2, "Dams" = 2))
+```
+
+The second thing to note is the size of the `egg_wt` effect relative to the standard error fit:
+
+```{r, echo = F}
+ests = rbind(
+  "2014" = summary(aux_3_14)$coef$cond["egg_wt",c("Estimate", "Std. Error")],
+  "2015" = summary(aux_3_15)$coef$cond["egg_wt",c("Estimate", "Std. Error")],
+  "2016" = summary(aux_3_16)$coef$cond["egg_wt",c("Estimate", "Std. Error")]
+)
+
+knitr::kable(ests, "html", digits = 2) %>%
+  kableExtra::kable_styling(full_width = F, bootstrap_options = "condensed")
+```
+
+For most years, the point estimate is large relative to the standard error.
+The interpretation of these effects is the same as in other analyses: they are log odds ratios, so for every one gram increase in egg mass, we expect the odds of having minijack progeny to change by a factor of `exp(estimate)`.
+Positive numbers indicate the odds increase for larger eggs relative to smaller eggs.
+
+Again, it is probably more informative to look over the range of egg masses each year, and compare the minijack probability (by sire age) between the smallest and largest egg sizes.
+These calculations were done using the average progeny weight from crosses within a year.
+
+```{r, echo = F}
+# function to create prediction data set
+create_pred_data_aux_3 = function(fit) {
+  # build basic prediction data: male ages only
+  pred_data = create_pred_data(fit)
+  
+  # extract the egg_wt used in fitting the model
+  egg_wt = fit$frame$egg_wt
+  
+  # create a new prediction data set
+  pred_data = expand.grid(sire_age = unique(pred_data$sire_age), progeny_wt = unique(pred_data$progeny_wt), egg_wt = c(min(egg_wt), max(egg_wt)))
+  pred_data$sire_id = NA
+  pred_data$dam_id = NA
+  
+  # return it
+  pred_data
+}
+
+# function to create predictions
+create_predictions_aux_3 = function(fit) {
+  
+  # create prediction data
+  pred_data = create_pred_data_aux_3(fit)
+  
+  # produce predictions (fixed effects only)
+  preds = predict(fit, pred_data, re.form = NA, type = "link", se.fit = T)
+  
+  # drop out the id columns: not needed
+  pred_data = pred_data[,-c(4,5)]
+  
+  # transform predictions from link to response scale: point estimate and intervals
+  pred_data$mean = expit(preds$fit)
+  pred_data$lwr95ci = expit(preds$fit + qnorm(0.025) * preds$se.fit)
+  pred_data$upr95ci = expit(preds$fit + qnorm(0.975) * preds$se.fit)
+  
+  # return predictions
+  pred_data
+}
+
+# a function to make a barplot for one year's fit
+aux_3_barplot = function(preds, yr) {
+  
+  # extract/format the estimates from the input
+  means = as.matrix(reshape2::dcast(preds, egg_wt ~ sire_age, value.var = "mean")[,-1])
+  lwrs = as.matrix(reshape2::dcast(preds, egg_wt ~ sire_age, value.var = "lwr95ci")[,-1])
+  uprs = as.matrix(reshape2::dcast(preds, egg_wt ~ sire_age, value.var = "upr95ci")[,-1])
+  
+  # create empty age-1 placeholders if the year is 2014
+  # so all plots have equal dimensions
+  if (yr == 2014) {
+    means = cbind("1" = c(NA, NA), means)
+    lwrs = cbind("1" = c(NA, NA), lwrs)
+    uprs = cbind("1" = c(NA, NA), uprs)
+  }
+
+  par(mar = c(1,3,1,1), tcl = -0.15, mgp = c(2,0.35,0), lend = "square", ljoin = "mitre")
+  mp = barplot(means, beside = T, ylim = c(0,1.2), col = c("grey60", "grey80"), border = NA, las = 1, yaxt = "n")
+  usr = par("usr"); xdiff = diff(usr[1:2]); ydiff = diff(usr[3:4])
+  text(x = usr[2], y = usr[4] - ydiff * 0.05, labels = yr, font = 2, pos = 2)
+  segments(mp, lwrs, mp, uprs, col = c("grey40", "grey60"))
+  segments(usr[1], usr[3], usr[2], usr[3], xpd = T)
+  axis(side = 1, at = colSums(mp)/2, labels = F)
+  axis(side = 2, at = seq(0, 1, 0.2), labels = T, las = 2)
+  legend("top", horiz = T, title = "Egg Weight (g)",
+         legend = round(sort(unique(preds$egg_wt)), 2), pch = 15,
+         col = c("grey60", "grey80"), pt.cex = 2, bty = "n")
+  if (yr == 2014) {
+    text(x = sum(mp[,1])/2, y = 0.4, labels = "No Data", font = 3)
+  }
+}
+```
+
+In this plot, each panel corresponds to a year, each group of two bars represents crosses involving a sire of a given age, dark bars represent crosses that involved the smallest egg size each year, and light bars represent crosses that involved the largest egg each year.
+The legend indicates these sizes.
+Error bars represent 95% confidence intervals.
+Among the auxiliary variables we analyzed, this one has the most statistical support for having explanatory power that is reasonably consistent across years.
+However, given much variability is still attributed to random dam-specific effects, we do not believe this is a hugely important explanatory variable.
+
+```{r, fig.width = 3.5, fig.height = 6, echo = F}
+par(mfrow = c(3,1), oma = c(2,2,0,0))
+aux_3_barplot(create_predictions_aux_3(aux_3_14), yr = 2014)
+aux_3_barplot(create_predictions_aux_3(aux_3_15), yr = 2015)
+aux_3_barplot(create_predictions_aux_3(aux_3_16), yr = 2016)
+mtext(side = 1, outer = T, line = 0.5, "Sire Age")
+mtext(side = 2, outer = T, line = 0, "Minijack Rate")
+```
+
+# Session Info
+
+```{r}
+library(details)
+```
+
+For reproducibility purposes.
+
+```{details, echo = F, details.summary = "Click to View R Session Info"}
+sessioninfo::session_info()
+```
