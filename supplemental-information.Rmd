@@ -1,7 +1,7 @@
 ---
-title: "Supplemental Information"
-subtitle: "Insert the title of the manuscript here"
-author: "Insert the author list here"
+title: "Supplemental Material"
+subtitle: "Lack of an effect of sire age on precocious maturation in hatchery spring Chinook Salmon as age-2 minijacks"
+author: "P.F. Galbreath, C.A. Stockton, C.M. Knudsen, L.R. Medeiros, I.J. Koch, B.A. Staton, W.J. Bosch, H. Nuetzel, A.L. Pierce"
 output: 
   html_document:
     toc: true
