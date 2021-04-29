@@ -51,6 +51,9 @@ ests = rbind(ests_14, ests_15, ests_16)
 # reorder columns
 ests = ests[,c("year", "type", "id", "estimate", "lwr95", "upr95", "p_val")]
 
+# use & to build contrast name, not -; excel was changing this to a date
+ests$id = stringr::str_replace(ests$id, "-", " & ")
+
 # save to a csv file
 write.csv(ests, file.path(out_dir, "bootstrap-summaries.csv"), row.names = F)
 
