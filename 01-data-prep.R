@@ -26,3 +26,6 @@ dat = dat[,-which(colnames(dat) %in% discard)]
 
 # create a progeny weight category: useful in plotting
 dat$wt_cat = cut(dat$progeny_wt, breaks = seq(5, 105, by = 5))
+
+# remove crosses that produced less than 10 progeny
+dat = dat[!(dat$cross %in% names(which(table(dat$cross) < 10))),]
