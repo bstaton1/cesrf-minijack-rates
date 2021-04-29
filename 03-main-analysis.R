@@ -2,7 +2,7 @@
 # SCRIPT THAT CONDUCTS THE MINIJACK ANALYSIS FOUND IN THE MAIN TEXT #
 # ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: #
 
-# NOTE: THE BOOTSTRAP IN THIS SCRIPT TAKES APPROXIMATELY 2.2 HOURS TO RUN
+# NOTE: THE BOOTSTRAP IN THIS SCRIPT TAKES APPROXIMATELY 2.5 HOURS TO RUN
 
 # load necessary packages
 source("00-packages.R")

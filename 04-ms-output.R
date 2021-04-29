@@ -16,6 +16,8 @@ source("02-functions.R")
 
 # directory for output
 out_dir = "ms-output"
+file_type = "eps"
+# file_type = "png"
 if (!dir.exists(out_dir)) dir.create(out_dir)
 
 # resolution for figures
@@ -28,6 +30,13 @@ boot_out_16 = readRDS("model-output/boot_out_16.rds")
 boot_out_null_14 = readRDS("model-output/boot_out_null_14.rds")
 boot_out_null_15 = readRDS("model-output/boot_out_null_15.rds")
 boot_out_null_16 = readRDS("model-output/boot_out_null_16.rds")
+
+##### CALCULATE COUNTS IN TABLE 1 #####
+# number of crosses by sire age and year
+with(dat[!duplicated(dat$cross),], tapply(cross, list(year, sire_age), length))
+
+# number of unique sires by age and year
+with(dat[!duplicated(dat$sire_id),], tapply(sire_id, list(year, sire_age), length))
 
 ##### CREATE TABLE SUMMARIZING BOOTSTRAP OUTPUT #####
 
@@ -80,7 +89,8 @@ agg$mp = unlist(lapply(x, function(y) sum(as.numeric(y))/2))
 agg$pch = ifelse(agg$n_smolt < 30, 22, 21)
 agg$cex = ifelse(agg$n_smolt < 30, 1.25, agg$n_smolt * 0.01)
 
-png(file.path(out_dir, "fixed-effect-progeny-wt.png"), h = 6 * ppi, w = 2.75 * ppi, res = ppi)
+if (file_type == "png") png(file.path(out_dir, "fixed-effect-progeny-wt.png"), h = 6 * ppi, w = 2.75 * ppi, res = ppi)
+if (file_type == "eps") cairo_ps(file.path(out_dir, "fixed-effect-progeny-wt.eps"), h = 6, w = 2.75, fallback_resolution = 1000)
 par(mar = c(1,1,1,1), oma = c(2,3,0,0), mfrow = c(3,1), mgp = c(2,0.35,0), tcl = -0.15, cex.axis = 1.2)
 
 # 2014 plot
@@ -214,7 +224,8 @@ years = 2014:2016
 at_x = 1:4
 cols = c("salmon", "royalblue", "forestgreen", "orange")
 
-png(file.path(out_dir, "fixed-effect-sire-age.png"), h = 6 * ppi, w = 2.75 * ppi, res = ppi)
+if (file_type == "png") png(file.path(out_dir, "fixed-effect-sire-age.png"), h = 6 * ppi, w = 2.75 * ppi, res = ppi)
+if (file_type == "eps") cairo_ps(file.path(out_dir, "fixed-effect-sire-age.eps"), h = 6, w = 2.75, fallback_resolution = 1000)
 par(mar = c(1,1,1,1), oma = c(2,3,0,0), mfrow = c(3,1), mgp = c(2,0.35,0), tcl = -0.15, cex.axis = 1.2)
 for (y in 1:3) {
   blank_plot(years[y])
@@ -230,7 +241,6 @@ for (y in 1:3) {
 mtext(side = 1, outer = T, line = 0.75, "Sire Age")
 mtext(side = 2, outer = T, line = 1.5, "Minijack Rate")
 dev.off()
-
 
 ##### CREATE FIGURE: RANDOM-EFFECT MINIJACK RATE BY SIRE_ID, UNCERTAINTY, AND DATA #####
 
@@ -317,7 +327,8 @@ create_male_re_plot = function(fit, yr, legend1, legend2) {
   box()
 }
 
-png(file.path(out_dir, "random-effect-sire-id.png"), h = 2.5 * ppi, w = 5.62 * ppi, res = ppi)
+if (file_type == "png") png(file.path(out_dir, "random-effect-sire-id.png"), h = 2.5 * ppi, w = 5.62 * ppi, res = ppi)
+if (file_type == "eps") cairo_ps(file.path(out_dir, "random-effect-sire-id.eps"), h = 2.5, w = 5.62, fallback_resolution = 1000)
 par(mfrow = c(1,3), oma = c(2.5,3,0,0.5), lend = "square")
 create_male_re_plot(fit_14, 2014, T, F)
 axis(side = 2, at = seq(0, 1, 0.2), labels = T, las = 2)
@@ -436,7 +447,8 @@ female_re_plot = function(fit, sire_age, yr, legend, yaxis = TRUE) {
 
 cols = c("1" = "salmon", "3" = "royalblue", "4" = "forestgreen", "5" = "orange")
 
-png(file.path(out_dir, "random-effect-dam-id.png"), h = 4 * ppi, w = 5.62 * ppi, res = ppi)
+if (file_type == "png") png(file.path(out_dir, "random-effect-dam-id.png"), h = 4 * ppi, w = 5.62 * ppi, res = ppi)
+if (file_type == "eps") cairo_ps(file.path(out_dir, "random-effect-dam-id.eps"), h = 4, w = 5.62, fallback_resolution = 1000)
 par(mfrow = c(3,4), oma = c(2.5,3.5,3,3))
 for (y in 2014:2016) {
   if (y == 2014) {
