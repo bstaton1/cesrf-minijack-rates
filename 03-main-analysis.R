@@ -47,7 +47,7 @@ nsim = 2000
 # fewer cores will make the code run more slowly
 # run: parallel::detectCores()
 # to figure out how many your computer has. leave at least one free for other tasks
-ncpus = 9
+ncpus = 10
 
 # initialize a parallel computing cluster
 my_cluster = makeSOCKcluster(ncpus)
@@ -108,4 +108,3 @@ saveRDS(boot_out_16, "model-output/boot_out_16.rds")
 saveRDS(boot_out_null_14, "model-output/boot_out_null_14.rds")
 saveRDS(boot_out_null_15, "model-output/boot_out_null_15.rds")
 saveRDS(boot_out_null_16, "model-output/boot_out_null_16.rds")
-
