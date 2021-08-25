@@ -207,7 +207,7 @@ add_legend = function() {
 add_cld = function(yr, alpha = 0.05) {
   ests_sub = subset(ests, year == yr & type == "odds_ratio")
   
-  contrasts = ests_sub$id
+  contrasts = stringr::str_replace(ests_sub$id, " & ", "-")
   reject_null = sapply(1:nrow(ests_sub), function(i) ests_sub$p_val[i] < alpha)
   
   names(reject_null) = contrasts
