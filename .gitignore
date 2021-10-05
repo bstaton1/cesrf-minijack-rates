@@ -17,5 +17,8 @@
 # ignore anything in the ms-output folder (reproducible from source at any time)
 ms-output/*
 
+# ignore csv files in the power-analyses folder (reproducible from source at any time)
+power-analysis/*csv
+
 # ignore anything in the scratch folder (a sandbox)
 scratch/*
