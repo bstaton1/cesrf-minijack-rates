@@ -1,6 +1,6 @@
 ---
 title: "Supplemental Material"
-subtitle: "Lack of an effect of sire age on precocious maturation in hatchery spring Chinook Salmon as age-2 minijacks"
+subtitle: "Precocious maturation of hatchery-raised spring Chinook Salmon as age-2 minijacks is not detectably affected by sire age"
 author: "P.F. Galbreath, C.A. Stockton, C.M. Knudsen, L.R. Medeiros, I.J. Koch, B.A. Staton, W.J. Bosch, H. Nuetzel, A.L. Pierce"
 output: 
   html_document:
