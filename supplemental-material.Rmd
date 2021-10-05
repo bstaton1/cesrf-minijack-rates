@@ -729,6 +729,601 @@ mtext(side = 1, outer = T, line = 0.5, "Sire Age")
 mtext(side = 2, outer = T, line = 0, "Minijack Rate")
 ```
 
+# Power Analysis
+
+```{r real-data}
+# READ IN REAL DATA AND CALCUALTE SUMMARIES FOR DESIGNING THE POWER ANALYSIS
+
+source("00-packages.R")
+source("01-data-prep.R")
+
+# subset out unique sires each year
+x_15 = subset(dat, year == 2015 & !duplicated(sire_id))
+x_16 = subset(dat, year == 2016 & !duplicated(sire_id))
+
+# total sires used each year
+n_sires_15 = nrow(x_15)
+n_sires_16 = nrow(x_16)
+
+# sire age composition used each year
+p_sires_15 = paste0(round(table(x_15$sire_age)/n_sires_15, 2) * 100, "%")
+p_sires_16 = paste0(round(table(x_16$sire_age)/n_sires_16, 2) * 100, "%")
+
+# number of dams used each year
+n_dams_15 = length(unique(subset(dat, year == 2015)$dam_id))
+n_dams_16 = length(unique(subset(dat, year == 2016)$dam_id))
+
+# distribution of the number of crosses per sire
+n_crosses_per_sire = sapply(unique(dat$sire_id), function(s) {
+  length(unique(subset(dat, sire_id == s)$cross))
+})
+p_crosses_per_sire = paste0(round(table(n_crosses_per_sire)/sum(table(n_crosses_per_sire)), 2) * 100, "%")
+
+# number of progeny from each cross
+n_progeny = with(subset(dat, year != 2014), tapply(minijack, cross, length))
+
+### these are taken from real model summaries ###
+
+# standard deviations of random effects, one per year
+sire_RE = c(1.1, 0.9, 0.57)
+dam_RE = c(0.6, 1, 1.4)
+
+# progeny weight coefficient, one per year
+progeny_wt_effect = c(0.18, 0.30, 0.33)
+```
+
+```{r sim-output}
+# read in the simulation output, produce basic summary stats, and prepare for plotting
+
+out_files = list.files("power-analysis", pattern = "\\.csv$", full.names = TRUE)
+out_list = lapply(out_files, function(x) read.csv(x))
+output = do.call(rbind, out_list)
+
+# calculate the average/range of the number of crosses with each parent number type
+mn_range = function(x) {
+  round(c(mean(x), range(x)))
+}
+
+base_cross_stats = mn_range(output$n_crosses[output$parents == "Base"])
+double_cross_stats = mn_range(output$n_crosses[output$parents == "Double"])
+quadruple_cross_stats = mn_range(output$n_crosses[output$parents == "Quadruple"])
+
+# create logical flags for each column type of the output object
+p_val_cols = stringr::str_detect(colnames(output), "^p")
+scenario_cols = c("scenario_ID", "parents", "progeny", "effect", "sigma")
+true_cols = stringr::str_detect(colnames(output), "true")
+mean_cols = stringr::str_detect(colnames(output), "mean")
+lwr_cols = stringr::str_detect(colnames(output), "lwr")
+upr_cols = stringr::str_detect(colnames(output), "upr")
+
+# obtain a unique scenario key
+scenarios = output[!duplicated(output$scenario_ID),scenario_cols]
+
+# determine the number of contrasts found to be significant for each simulation
+output$n_sig = rowSums(output[,p_val_cols] < 0.05)
+
+# create a flag for if >= X contrasts were found to be signficant for each simulation
+output$sig1 = output$n_sig >= 1
+output$sig2 = output$n_sig >= 2
+output$sig3 = output$n_sig >= 3
+output$sig4 = output$n_sig >= 4
+output$sig5 = output$n_sig >= 5
+output$sig6 = output$n_sig >= 6
+
+# calculate the probability of finding >= X significant contrasts for each scenario
+agg1 = aggregate(sig1 ~ scenario_ID, data = output, FUN = mean)
+agg2 = aggregate(sig2 ~ scenario_ID, data = output, FUN = mean)
+agg3 = aggregate(sig3 ~ scenario_ID, data = output, FUN = mean)
+agg4 = aggregate(sig4 ~ scenario_ID, data = output, FUN = mean)
+agg5 = aggregate(sig5 ~ scenario_ID, data = output, FUN = mean)
+agg6 = aggregate(sig6 ~ scenario_ID, data = output, FUN = mean)
+
+# combine with scenario key
+out = merge(scenarios, agg1, by = "scenario_ID")
+out = merge(out, agg2, by = "scenario_ID")
+out = merge(out, agg3, by = "scenario_ID")
+out = merge(out, agg4, by = "scenario_ID")
+out = merge(out, agg5, by = "scenario_ID")
+out = merge(out, agg6, by = "scenario_ID")
+
+# organize factor levels: controls the order of bars in barplots
+out$parents = factor(out$parents, levels = c("Base", "Double", "Quadruple"))
+out$progeny = factor(out$progeny, levels = c("Base", "Double", "Quadruple"))
+out$effect = factor(out$effect, levels = c("None", "Weak", "Strong"))
+out$sigma = factor(out$sigma, levels = c("Base", "Half"))
+
+# create objects for each subset of true effect levels
+out_none = out[out$effect == "None",]
+out_weak = out[out$effect == "Weak",]
+out_strong = out[out$effect == "Strong",]
+
+```
+
+We performed an analysis to characterize the power of our study design and analysis. That is, assuming there truly are differences in average minijack rates among sire ages, we wished to quantify the probability that our study would have assigned them statistical significance.
+
+## Background
+
+Power is the complement to the expected Type II error rate. The Type II error rate quantifies how frequently we should expect to fail to reject null hypotheses that are actually false.
+Thus, power quantifies how often we should expect to correctly assign statistical significance to a difference found in the data.
+There are four primary factors that influence the power of an analysis:
+
+1. **Confidence level**: the acceptable Type I error rate (falsely rejecting a true null hypothesis, concluding there is a difference when there truly is none). Our analysis used the widely accepted $\alpha$ = 0.05.
+2. **Effect size**: all else equal, larger differences will be detected with greater probability than smaller differences.
+3. **Sample size**: all else equal, larger samples produce smaller standard errors and increase the probability of detecting an effect.
+4. **Variability**: all else equal, estimates informed by less variable data will have a higher probability of being significant.
+
+We considered factor (1) fixed, and set up a power analysis to investigate the influence that factors (2) -- (4) may have had on our analysis to correctly reject null hypotheses. In total, we used 54 scenarios, where each represented a combination of true sire age effect size, sample size, and variability.
+
+## Methods
+
+### Features common to all scenarios
+
+We used stochastic simulation to conduct the power analysis, since it is a straightforward way to test the performance of complex models (such as our binomial GLMMs) on data sets generated with known properties (Johnson et al. [2015](https://doi.org/10.1111/2041-210X.12306)). Under this approach, we simulated data that represented one year of our study, fitted the binomial GLMM we used for our analysis, determined whether each sire age comparison was significant, and replicated the process many times to measure the frequency with which null hypotheses were rejected.
+
+We simulated data following the assumptions of the model and study design features were intended to mimic the features of the 2015 and 2016 experiments, since we wished to evaluate the power of these more complex experiments (2014 differed by excluding age-1 sires). Biological features (e.g., progeny weight mean and variability, its effect on minijack status, etc.) were informed by the outcomes from all three years. In particular, we attempted to mimic these general features:
+
+* **Sire age composition**: For 2015, the compositional breakdown was `r p_sires_15[1]` age-1, `r p_sires_15[2]` age-3, `r p_sires_15[3]` age-4, and `r p_sires_15[4]` age-5. For 2016, it was `r p_sires_16[1]` age-1, `r p_sires_16[2]` age-3, `r p_sires_16[3]` age-4, and `r p_sires_16[4]` age-5. To mimic this between-year variability in a key design feature, we randomly assigned sires to each of the four ages, with the expected distribution being 25% of each age. We forced there to be at least one sire of each age.
+* **Sire-specific replication**: For 2015 and 2016 combined, each sire was involved in between 1 and 5 crosses. The breakdown was: 1 cross (`r p_crosses_per_sire[1]`), 2 crosses (`r p_crosses_per_sire[2]`), 3 crosses (`r p_crosses_per_sire[3]`), 4 crosses (`r p_crosses_per_sire[4]`), and 5 crosses (`r p_crosses_per_sire[5]`). We mimicked this by giving each sire a random number of crosses (between 1 and 5) with these heterogeneous probabilities.
+* **Dam-specific replication**: In our studies, the number of dams was less than the number of sires such that each dam was generally used in multiple crosses. We mimicked this by randomly assigning a dam to each cross; the same dam and sire were crossed only once.
+* **Progeny per cross**: The mean number of male progeny per cross examined for minijack status was `r round(mean(n_progeny), 1)` and the variance among crosses was `r round(var(n_progeny), 1)`. Because these are approximately equal and the number of progeny from each cross must be an integer, we used a Poisson distribution to generate the number of male progeny from each cross that were examined for minijack status. We enforced that there must be at least 2 progeny per cross.
+* **Progeny weight effect**: In our real studies, progeny weight was found to have a background effect on minijack status, such that larger individuals were more likely to be minijacks. This creates within-cross heterogeneity in minijack rates. We generated progeny weights using a log-normal distribution with (log-scale) mean equal to `r round(mean(log(dat$progeny_wt)),1)` and standard deviation equal to `r round(sd(log(dat$progeny_wt)),1)`. The estimated log odds ratios for progeny weight for the real data were `r progeny_wt_effect[1]`, `r progeny_wt_effect[2]`, and `r progeny_wt_effect[3]` in 2014, 2015, and 2016, respectively. For simulating the true effect progeny weight on minijack rate, we used the average of these estimates (`r mean(progeny_wt_effect)`).
+
+### Scenario-specific features
+
+Four features of our study were manipulated for the power analysis to build the scenarios:
+
+1. **Parent sample size**: In 2015 there were `r n_sires_15` sires and `r n_dams_15` dams with `r length(unique(dat$cross[dat$year == 2015]))` total crosses and in 2016 there were `r n_sires_16` sires and `r n_dams_16` dams with `r length(unique(dat$cross[dat$year == 2016]))` total crosses. We used three levels of parent sample sizes:
+    * _Base_: 34 sires and 23 dams, leading to an average of `r base_cross_stats[1]` (range: `r base_cross_stats[2]` -- `r base_cross_stats[3]`) crosses per experiment
+    * _Double_: 68 sires and 46 dams, leading to an average of `r double_cross_stats[1]` (range: `r double_cross_stats[2]` -- `r double_cross_stats[3]`) crosses per experiment
+    * _Quadruple_: 136 sires and 92 dams, leading to an average of `r quadruple_cross_stats[1]` (range: `r quadruple_cross_stats[2]` -- `r quadruple_cross_stats[3]`) crosses per experiment
+2. **Progeny sample size**: In 2015/2016 combined the average number of male progeny assigned to a cross was `r round(mean(n_progeny), 1)`. We used three levels of average progeny sample sizes:
+   * _Base_: 22
+   * _Double_: 44
+   * _Quadruple_: 88
+3. **True effect of sire age**: We wished to represent the range of minimal sire age effects we would have deemed biologically significant if our model assigned them statistical significance, recognizing that if the model can detect small effects then, all else equal, it can detect larger effects with greater power. We used three levels of true effects represented as the expected minijack rates by sire age at the average progeny weight and in the absence of random effects:
+   * _No effect_: all sire ages have expected minijack rates of 50%. This case allowed us to evaluate our experiment-wise Type I error rate. 
+   * _Weak effect_: 50% chance for age-1 sires, 45% for age-3, 40% for age-4, and 35% for age-5 
+   * _Strong effect_: 50% chance for age-1 sires, 40% for age-3, 30% for age-4, and 20% for age-5 
+4. **True variability of parent-specific random effects**: The standard deviation of random effects was `r sire_RE[1]`, `r sire_RE[2]`, and `r sire_RE[3]` for sires and `r dam_RE[1]`, `r dam_RE[2]`, and `r dam_RE[3]` for dams in 2014, 2015, and 2016, respectively. As noted in our main text, these terms are quite high for logit-normal random variables, and are certainly higher than were anticipated during the planning of the study. Recognizing that between-cross variability may mask any true effect of sire age, we were interested in whether our study design would have much higher power if the variability was lower.
+   * _Base_: the average values from 2014 -- 2016 were used: 0.85 for sires and 1 for dams.
+   * _Half_: the average standard deviations were halved: 0.425 for sires and 0.5 for dams.
+
+Combined, there were 54 unique combinations of these factor levels, each making up a "scenario". We ran 100 replicates of each scenario.
+
+For the sample sizes, we must highlight that increasing the number of parents and crosses was not realistic for our study, given the logistical constraints of the hatchery setting; the double scenario could feasibly be achieved in high return years, but the quadruple scenario is unlikely to be ever attainable for this system. Increasing our samples sizes for progeny numbers would have been more realistic, but even still quadrupling would have been unlikely to actually achieve for all crosses.
+
+### P-values and Inference
+
+For the real data, we applied a parametric bootstrap approach to estimate the odds ratio and p-value for each sire age comparison. However, this approach is far too computationally intensive to be applied to the simulation-based power analysis. We therefore used a simpler approach for the simulated data which involves changing the reference level of the sire age factor and refitting the model. By default, sire age-1 is the reference level, and the p-values reported for comparisons between sire ages are all relative to this age. So to obtain p-values for the comparison between mean minijack rates for, e.g., sire age-3 and sire age-4, we "releveled" the sire age factor to be age-3 and re-fitted the model. This process is shown in the R function below. 
+
+We compared the p-values obtained using this approach and the bootstrap approach for the real data set to verify that this method gives similar inference to the method we used on the real data. We found that the two methods give very similar p-value estimates, as shown in the figure below (solid line is 1:1 equality). In particular, the assignment of significance vs. non-significance was identical between approaches. This high degree of similarity gave us confidence in using this simpler (but much computationally faster) method of obtaining p-values for the power analysis.
+
+```{r, fig.width = 5, fig.height = 5, message = FALSE}
+
+# create three new data sets, differ only in which sire age is the reference group
+dat1 = dat3 = dat4 = dat
+dat1$sire_age = factor(dat1$sire_age, levels = c(1, 3, 4, 5))
+dat3$sire_age = factor(dat3$sire_age, levels = c(3, 1, 4, 5))
+dat4$sire_age = factor(dat4$sire_age, levels = c(4, 1, 3, 5))
+
+# fit three models per year
+fit_14_1 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat1, year == 2014), family = binomial)
+fit_14_3 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat3, year == 2014), family = binomial)
+fit_14_4 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat4, year == 2014), family = binomial)
+
+fit_15_1 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat1, year == 2015), family = binomial)
+fit_15_3 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat3, year == 2015), family = binomial)
+fit_15_4 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat4, year == 2015), family = binomial)
+
+fit_16_1 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat1, year == 2016), family = binomial)
+fit_16_3 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat3, year == 2016), family = binomial)
+fit_16_4 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id), data = subset(dat4, year == 2016), family = binomial)
+
+# a function to get p-values for each comparison
+get_contrasts = function(fit1, fit3, fit4) {
+  coefs1 = summary(fit1)$coef$cond
+  coefs3 = summary(fit3)$coef$cond
+  coefs4 = summary(fit4)$coef$cond
+  
+  # obtain the p-values of each contrast
+  # THIS METHOD DOES NOT ACCOUNT FOR TYPE I ERROR RATE INFLATION
+  # slightly different if sire age 1 is available (2015 & 2016) or not *2014)
+  if ("sire_age1" %in% rownames(coefs3)) {
+    p_vals = data.frame(p1v3 = coefs1["sire_age3","Pr(>|z|)"],
+                        p1v4 = coefs1["sire_age4","Pr(>|z|)"],
+                        p1v5 = coefs1["sire_age5","Pr(>|z|)"],
+                        p3v4 = coefs3["sire_age4","Pr(>|z|)"],
+                        p3v5 = coefs3["sire_age5","Pr(>|z|)"],
+                        p4v5 = coefs4["sire_age5","Pr(>|z|)"]
+    )
+  } else {
+    p_vals = data.frame(
+      p3v4 = coefs3["sire_age4","Pr(>|z|)"],
+      p3v5 = coefs3["sire_age5","Pr(>|z|)"],
+      p4v5 = coefs4["sire_age5","Pr(>|z|)"]
+    )
+  }
+  
+  reshape2::melt(p_vals, value.name = "value", variable.name = "id")
+}
+
+# apply function to each year and combine
+p_14 = get_contrasts(fit_14_1, fit_14_3, fit_14_4); p_14$year = 2014
+p_15 = get_contrasts(fit_15_1, fit_15_3, fit_15_4); p_15$year = 2015
+p_16 = get_contrasts(fit_16_1, fit_16_3, fit_16_4); p_16$year = 2016
+p = rbind(p_14, p_15, p_16)
+
+# reformat for consistency with output from bootstrap approach
+p = reshape2::melt(p, id.vars = c("year", "id"), value.name = "p_val")
+p = p[,-which(colnames(p) == "variable")]
+p$method = "relevel"
+p$id = stringr::str_replace(p$id, "v", " & ")
+p$id = stringr::str_remove(p$id, "p")
+
+# read in and prepare boostrap output
+boot = read.csv("ms-output/bootstrap-summaries.csv")
+boot = subset(boot, type == "odds_ratio")
+boot = boot[,c("year", "id", "p_val")]
+boot$method = "boot"
+
+# combine bootstrap output with relevel output and format for plotting
+pval_output = rbind(boot, p)
+pval_output = reshape2::dcast(pval_output, year + id ~ method, value.var = "p_val")
+
+# make a scatter plot that compares the two methods
+par(xaxs = "i", yaxs = "i", mar = c(3,3,1,1), mgp = c(2,0.35,0), tcl = -0.15)
+plot(relevel ~ boot, data = pval_output, xlim = c(0,1), ylim = c(0,1), type = "n",
+     xlab = "Bootstrap P-value", ylab = "Relevel Method P-value")
+usr = par("usr")
+rect(usr[1], usr[3], 0.05, usr[4], col = "grey", border = NA)
+rect(usr[1], usr[3], usr[2], 0.05, col = "grey", border = NA)
+abline(h = 0.05, lty = 1, col = "white")
+abline(v = 0.05, lty = 1, col = "white")
+points(relevel ~ boot, data = pval_output, pch = 1, cex = 1,
+       col = ifelse(year == 2014, "black", ifelse(year == 2015,  "red", "blue")))
+abline(0,1)
+legend("top", horiz = TRUE, legend = c("2014", "2015", "2016"), pch = 1, pt.cex = 1, col = c("black", "red", "blue"), bty = "n", title = "Year")
+box()
+```
+
+Each comparison is a two-tailed test between two given sire ages. There are 6 such comparisons for a given year in which all 4 sire ages were represented:
+
+*  Age-1 vs. age-3
+*  Age-1 vs. age-4
+*  Age-1 vs. age-5
+*  Age-3 vs. age-4
+*  Age-4 vs. age-5
+*  Age-4 vs. age-5
+
+The analysis calculated p-values for each comparison and counted the number of comparisons found to be significant at $\alpha$ = 0.05 (for each comparisons). We present the results organized by the power to find at least X significant comparisons, where 1 $\leq$ X $\leq$ 6. For the "no effect" scenario, the "power" we present is interpreted as the experimental-wise Type I error rate when searching for at least X significant comparisons, because in reality there is no sire age effect. In the "weak" and "strong" effect scenarios, the "power" we calculate is the probability of detecting at least X significant comparisons, because we know that there truly is a sire age effect. 
+
+### R Function
+
+We used a custom R function to carry out the simulation of data, model fitting, and inference for one year at a time. The function accepts several (self-explanatory) arguments to control some of the features described above. Example argument values are provided so readers can assign these to objects and run the code in the function body line-by-line to see how it works.
+
+```{r power-simulation-function, echo = TRUE}
+
+# example argument values
+# uncomment and run these to allow running the function line-by-line
+# n_total_sires = 35
+# n_total_dams = 24
+# mean_progeny_per_cross = 21
+# minijack_probs = c("1" = 0.50, "3" = 0.40, "4" = 0.30, "5" = 0.20)
+# sigma_sire = 0.85
+# sigma_dam = 1
+
+simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cross, minijack_probs, sigma_sire = 0.85, sigma_dam = 1, fit = TRUE) {
+  
+  ### DEFINE FIXED FEATURES OF EXPERIMENTAL DESIGN ###
+  
+  # the expected age distribution of sires
+  p_sire_age = rep(0.25, 4)
+  
+  # the expected number of crosses each male is used in
+  p_n_cross = c("1" = 0.20, "2" = 0.55, "3" = 0.22, "4" = 0.02, "5" = 0.01)
+  
+  ### DEFINE FIXED FEATURES OF THE BIOLOGY/FIXED EFFECTS MODEL ###
+  
+  # mean and variability of progeny weight
+  meanLog_progeny_wt = 3.42  # mean(log(progeny_wt))
+  sdLog_progeny_wt = 0.28    # sd(log(progeny_wt))
+  
+  # the log odds ratio of progeny weight on minijack rate
+  beta_progeny_wt = 0.27
+  
+  # determine the coefficients of the logit model
+  # based on average progeny wt and provided average minijack rates by sire age
+  beta_age1 = qlogis(minijack_probs["1"]) - beta_progeny_wt * exp(meanLog_progeny_wt)
+  beta_age3 = qlogis(minijack_probs["3"]) - beta_age1 - beta_progeny_wt * exp(meanLog_progeny_wt)
+  beta_age4 = qlogis(minijack_probs["4"]) - beta_age1 - beta_progeny_wt * exp(meanLog_progeny_wt)
+  beta_age5 = qlogis(minijack_probs["5"]) - beta_age1 - beta_progeny_wt * exp(meanLog_progeny_wt)
+  betas = c(beta_age1, beta_progeny_wt, beta_age3, beta_age4, beta_age5)
+  
+  # build a general design matrix. one row represents the correct settings for a given sire age
+  # which will be used to build the full design matrix to obtain progeny-specific minijack rates from a given cross
+  # the progeny_wt column will be replaced with real values.
+  # see below for usage
+  DM_age = cbind("age1" = c(1,1,1,1), 
+                 "progeny_wt" = rep(NA, 4),
+                 "age3" = c(0,1,0,0),
+                 "age4" = c(0,0,1,0),
+                 "age5" = c(0,0,0,1))
+  rownames(DM_age) = c("1", "3", "4", "5")
+  
+  ### GENERATE RANDOM EXPERIMENTAL OUTCOMES ###
+  
+  # build the pool of sires: each will be used in at least one cross
+  sire_pool = data.frame(
+    sire_id = paste0("sire_", 1:n_total_sires),
+    sire_age = sample(c(1,3,4,5), n_total_sires, p_sire_age, replace = TRUE),
+    sire_effect = rnorm(n_total_sires, 0, sigma_sire),
+    times_used = sample(as.numeric(names(p_n_cross)), n_total_sires, p_n_cross, replace = TRUE)
+  )
+  sire_pool$sire_age = factor(sire_pool$sire_age, levels = c(1, 3, 4, 5))
+  
+  # ensure there is at least one sire of each age
+  # the rest of the code will fail if one of the ages is missing
+  # this is VERY rare, but we are running many simulations
+  sire_pool$sire_age[1:4] = c(1,3,4,5)
+  
+  # build the pool of dams: each should be used in at least one cross, but not guaranteed
+  dam_pool = data.frame(
+    dam_id = paste0("dam_", 1:n_total_dams),
+    dam_effect = rnorm(n_total_dams, 0, sigma_dam)
+  )
+  
+  # build crosses: for each male, randomly assign 'times_used' females to cross with
+  crosses = lapply(1:nrow(sire_pool), function(i) {
+    tmp = data.frame(
+      sire_id = sire_pool$sire_id[i],
+      dam_id = sample(dam_pool$dam_id, sire_pool$times_used[i], replace = FALSE)
+    )
+    tmp$cross_id = paste0(tmp$sire_id, "-", tmp$dam_id)
+    tmp
+  })
+  crosses = do.call(rbind, crosses)
+  
+  # generate number of progeny per cross (number of binomial trials)
+  # assume the number of cross-specific progeny is a Poisson random variable
+  # enforce at least two progeny
+  crosses$n_progeny = rpois(nrow(crosses), mean_progeny_per_cross)
+  crosses$n_progeny[crosses$n_progeny < 2] = 2
+  
+  # build the full data set: generates 1 row per progeny, 
+  # with parent attributes (age, ids, and REs) and individual progeny weight included
+  dat = lapply(1:nrow(crosses), function(i) {
+    
+    tmp = data.frame(
+      sire_id = crosses$sire_id[i],
+      sire_age = as.character(sire_pool[sire_pool$sire_id == crosses$sire_id[i],"sire_age"]),
+      dam_id = crosses$dam_id[i],
+      cross_id = crosses$cross_id[i],
+      sire_effect = sire_pool$sire_effect[sire_pool$sire_id == crosses$sire_id[i]],
+      dam_effect = dam_pool$dam_effect[dam_pool$dam_id == crosses$dam_id[i]],
+      progeny_wt = round(rlnorm(crosses$n_progeny[i], meanLog_progeny_wt - 0.5 * sdLog_progeny_wt^2, sdLog_progeny_wt))
+    )
+    
+    # build the design matrix for this cross
+    # for obtaining fixed-effect minijack rate for each progeny based on sire age and weight
+    DM = DM_age[tmp$sire_age,]; DM[,"progeny_wt"] = tmp$progeny_wt
+    
+    # produce progeny-specific minijack rate: fixed-effect (sire age & weight) + parent random effects
+    tmp$minijack_rate = as.numeric(plogis(DM %*% betas + tmp$sire_effect + tmp$dam_effect))
+    
+    # add a random minijack status variable
+    tmp$minijack = rbinom(nrow(tmp), 1, tmp$minijack_rate)
+    
+    tmp
+  })
+  dat = do.call(rbind, dat)
+  
+  # create 3 data sets, differ only in which sire age is the reference group
+  # this is so all contrasts can be obtained without bootstrap
+  # bootstrap is too time-intensive for stochastic simulation study
+  dat1 = dat; dat1$sire_age = factor(dat1$sire_age, levels = c(1, 3, 4, 5))  # age 1 is the reference
+  dat3 = dat; dat3$sire_age = factor(dat3$sire_age, levels = c(3, 1, 4, 5))  # age 3 is the reference
+  dat4 = dat; dat4$sire_age = factor(dat4$sire_age, levels = c(4, 1, 3, 5))  # age 4 is the reference
+  
+  # fit the models. all are identical except for which sire age is the reference group
+  if (fit) {
+    fit1 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id),
+                            family = binomial, data = dat1)
+    fit3 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id),
+                            family = binomial, data = dat3)
+    fit4 = glmmTMB::glmmTMB(minijack ~ progeny_wt + sire_age + (1|sire_id) + (1|dam_id),
+                            family = binomial, data = dat4)
+    
+    # extract the fixed effects coefficients table from each fit
+    coefs1 = summary(fit1)$coef$cond
+    coefs3 = summary(fit3)$coef$cond
+    coefs4 = summary(fit4)$coef$cond
+    
+    # obtain the p-values of each contrast
+    # THIS METHOD DOES NOT ACCOUNT FOR TYPE I ERROR RATE INFLATION
+    p_vals = data.frame(p1v3 = coefs1["sire_age3","Pr(>|z|)"],
+                        p1v4 = coefs1["sire_age4","Pr(>|z|)"],
+                        p1v5 = coefs1["sire_age5","Pr(>|z|)"],
+                        p3v4 = coefs3["sire_age4","Pr(>|z|)"],
+                        p3v5 = coefs3["sire_age5","Pr(>|z|)"],
+                        p4v5 = coefs4["sire_age5","Pr(>|z|)"]
+    )
+    
+    # obtain fixed-effect fitted values -- estimated minijack rates by sire age at the average progeny weight
+    newdata1 = data.frame(sire_age = factor(c(1,3,4,5), levels = levels(dat1$sire_age)),
+                          progeny_wt = exp(meanLog_progeny_wt), sire_id = NA, dam_id = NA)
+    preds = predict(fit1, newdata1, se.fit = TRUE)
+    
+    # fitted values
+    means = data.frame(
+      age_1_mjr_mean = plogis(preds$fit[1]),
+      age_3_mjr_mean = plogis(preds$fit[2]),
+      age_4_mjr_mean = plogis(preds$fit[3]),
+      age_5_mjr_mean = plogis(preds$fit[4])
+    )
+    
+    # lower 95% CL
+    lwr95cl = data.frame(
+      age1_mjr_lwr95 = plogis(preds$fit[1] + qnorm(0.025) * preds$se.fit[1]),
+      age3_mjr_lwr95 = plogis(preds$fit[2] + qnorm(0.025) * preds$se.fit[2]),
+      age4_mjr_lwr95 = plogis(preds$fit[3] + qnorm(0.025) * preds$se.fit[3]),
+      age5_mjr_lwr95 = plogis(preds$fit[4] + qnorm(0.025) * preds$se.fit[4])
+    )
+    
+    # upper 95% CL
+    upr95cl = data.frame(
+      age1_mjr_upr95 = plogis(preds$fit[1] + qnorm(0.975) * preds$se.fit[1]),
+      age3_mjr_upr95 = plogis(preds$fit[2] + qnorm(0.975) * preds$se.fit[2]),
+      age4_mjr_upr95 = plogis(preds$fit[3] + qnorm(0.975) * preds$se.fit[3]),
+      age5_mjr_upr95 = plogis(preds$fit[4] + qnorm(0.975) * preds$se.fit[4])
+    )
+    
+    # true values
+    true = data.frame(
+      age_1_mjr_true = minijack_probs["1"],
+      age_3_mjr_true = minijack_probs["3"],
+      age_4_mjr_true = minijack_probs["4"],
+      age_5_mjr_true = minijack_probs["5"]
+    )
+    
+    # random effect SDs
+    re_output = glmmTMB::VarCorr(fit1)
+    sigma = data.frame(
+      sigma_sire_est = sqrt(re_output$cond$sire_id[1]),
+      sigma_dam_est = sqrt(re_output$cond$dam_id[1]),
+      sigma_sire_true = sigma_sire,
+      sigma_dam_true = sigma_dam
+    )
+    
+    # combine output into a data.frame
+    output = cbind(n_crosses = nrow(crosses), true, means, lwr95cl, upr95cl, sigma, p_vals)
+    rownames(output) = NULL
+    
+    # return the output
+    return(output)
+  } else {
+    # if not fitting, just return the data set
+    return(dat1)
+  }
+}
+```
+
+Here is an example of running the function one time (simulates one year of experiment, with base options and a strong true effect).
+
+```{r power-simulation-example, echo = TRUE}
+sim_out = simulate_experiment(
+  n_total_sires = 35, n_total_dams = 24, mean_progeny_per_cross = 21,
+  minijack_probs = c("1" = 0.50, "3" = 0.40, "4" = 0.30, "5" = 0.20),
+  sigma_sire = 0.85, sigma_dam = 1
+)
+round(sim_out, 2)
+```
+
+## Results {.tabset .tabset-pills}
+
+The figures below show the proportion of simulations that resulted in at least X significant differences for each scenario. Each panel is a given true effect size, bar color represents the average number of progeny per cross, and groups of bars represent the number of parents used in the crosses (and thus the number of crosses, see methods). The left three panels show results for the base level of high parent-specific variability and those on the right show results for reduced variability.
+
+Toggle through the buttons below to see the power for detecting at least X significant differences, recognizing that "power" for the "no effect" scenarios really means "experiment-wise Type I error rate".
+
+```{r power-plot-function}
+# a function to make a plot summarizing output
+power_plot = function(sig, sigma, legend = FALSE) {
+  
+  # set colors for bars and borders
+  fill_cols = c("grey40", "grey60", "grey80")
+  border_cols = c("grey20", "grey40", "grey60")
+  
+  # extract the number of significant contrasts
+  num = stringr::str_extract(sig, "[:digit:]")
+  
+  # extract and format the proper results for each bar
+  x_none = as.matrix(reshape2::dcast(out_none[out_none$sigma == sigma,c("parents", "progeny", sig)], progeny ~ parents, value.var = sig)[,-1])
+  x_weak = as.matrix(reshape2::dcast(out_weak[out_weak$sigma == sigma,c("parents", "progeny", sig)], progeny ~ parents, value.var = sig)[,-1])
+  x_strong = as.matrix(reshape2::dcast(out_strong[out_strong$sigma == sigma,c("parents", "progeny", sig)], progeny ~ parents, value.var = sig)[,-1])
+  
+  # make the "No Effect" Plot
+  barplot(x_none, beside = TRUE, ylim = c(0,1), main = "No Sire Age Effect", col = fill_cols, border = border_cols)
+  segments(par("usr")[1], par("usr")[3], par("usr")[2], par("usr")[3], xpd = TRUE)
+  if (legend) legend("topleft", title = "Progeny Sample Size", legend = levels(out$progeny), pch = 22, col = border_cols, pt.bg = fill_cols, pt.cex = 1.5, bty = "n")
+  
+  # make the "Weak Effect" Plot
+  barplot(x_weak, beside = TRUE, ylim = c(0,1), main = '"Weak" Sire Age Effect', col = fill_cols, border = border_cols)
+  segments(par("usr")[1], par("usr")[3], par("usr")[2], par("usr")[3], xpd = TRUE)
+  
+  # make the "Strong Effect" Plot
+  barplot(x_strong, beside = TRUE, ylim = c(0,1), main = '"Strong" Sire Age Effect', col = fill_cols, border = border_cols)
+  segments(par("usr")[1], par("usr")[3], par("usr")[2], par("usr")[3], xpd = TRUE)
+  
+  # add axes labels
+  mtext(side = 1, outer = TRUE, line = 1, "Parent Sample Size")
+  mtext(side = 2, outer = TRUE, line = 0, stringr::str_replace("Pr(Detect at Least X Significant Contrasts)", "X", num))
+}
+```
+
+### $\geq$ 1
+
+```{r, fig.width = 4.5, fig.height = 6}
+par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
+power_plot("sig1", "Base", TRUE); power_plot("sig1", "Half")
+mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
+```
+
+### $\geq$ 2
+
+```{r, fig.width = 4.5, fig.height = 6}
+par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
+power_plot("sig2", "Base", TRUE); power_plot("sig2", "Half")
+mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
+```
+
+### $\geq$ 3
+
+```{r, fig.width = 4.5, fig.height = 6}
+par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
+power_plot("sig3", "Base", TRUE); power_plot("sig3", "Half")
+mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
+```
+
+### $\geq$ 4
+
+```{r, fig.width = 4.5, fig.height = 6}
+par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
+power_plot("sig4", "Base", TRUE); power_plot("sig4", "Half")
+mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
+```
+
+### $\geq$ 5
+
+```{r, fig.width = 4.5, fig.height = 6}
+par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
+power_plot("sig5", "Base", TRUE); power_plot("sig5", "Half")
+mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
+```
+
+### $\geq$ 6
+
+```{r, fig.width = 4.5, fig.height = 6}
+par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
+power_plot("sig6", "Base", TRUE); power_plot("sig6", "Half")
+mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
+```
+
+## 
+
+**Interpretation of findings**
+
+_General patterns_
+
+*  All else equal, increasing the effect size increased power, as did reducing variability -- these were expected findings, but quantifying them is still informative.
+*  More power was gained by adding more parents to the study (conducting more crosses) than by adding more progeny. For example, base parent sample size with quadruple progeny size often gave less power than double parent size with base progeny size.
+*  The Type I error rate is approximately 0.25 for searching for at least 1 significant comparison, but declined rapidly when searching for more comparisons. Further, it was largely unaffected by the amount of random variability or sample size.
+
+_Specific findings relative to our sample sizes_
+
+*  In looking for even just least 1 or 2 significant differences, our study had low power (<= ~0.5) for detecting weak effects, but decent power for detecting strong effects (<= ~0.7 -- 0.8) even with the high parent variability. 
+*  Quadrupling progeny size did little to change this finding with the base level of parent sample size; to obtain meaningful gains in power we would have needed to double or preferably quadruple parent/cross numbers, which would not have been realistic.
+*  If variability due to parent-level random effects was lower, our study would have had higher power (though still often lower than ideal) to detect several even weak effects, supporting our finding that if present, sire age effects on minijack outcomes are small relative the influence of random parent-specific variability. Further, when designing the study, we did not anticipate this variability to be nearly as high as it was. Future studies on this and similar topics should account for the possibility of large parent-specific effects in their design.
+
+
 # Session Info
 
 ```{r}
