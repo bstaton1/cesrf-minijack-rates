@@ -75,19 +75,6 @@ simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cro
                  "age5" = c(0,0,0,1))
   rownames(DM_age) = c("1", "3", "4", "5")
   
-  ### DEFINE A BASIC HELPER FUNCTION ###
-  # FOR A LIST WHERE ELEMENTS ARE DATAFRAMES, UNLIST THEM AND COMBINE THEM INTO ONE DATA FRAME
-  unlist_dfs = function(list) {
-    # empty object
-    output = NULL
-    
-    # loop through list elements, combining the data frame in each with all previous
-    for (i in 1:length(list)) output = rbind(output, list[[i]])
-    
-    # return the output
-    return(output)
-  }
-  
   ### GENERATE RANDOM EXPERIMENTAL OUTCOMES ###
   
   # build the pool of sires: each will be used in at least one cross
@@ -119,7 +106,7 @@ simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cro
     tmp$cross_id = paste0(tmp$sire_id, "-", tmp$dam_id)
     tmp
   })
-  crosses = unlist_dfs(crosses)
+  crosses = do.call(rbind, crosses)
   
   # generate number of progeny per cross (number of binomial trials)
   # assume the number of cross-specific progeny is a Poisson random variable
@@ -153,7 +140,7 @@ simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cro
     
     tmp
   })
-  dat = unlist_dfs(dat)
+  dat = do.call(rbind, dat)
   
   # create 3 data sets, differ only in which sire age is the reference group
   # this is so all contrasts can be obtained without bootstrap
