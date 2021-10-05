@@ -1,15 +1,15 @@
 ---
 title: "Power Analysis Portion of Supplemental Material"
 output: 
-  # html_document:
-    # code_folding: hide
-  word_document
+  html_document:
+    code_folding: hide
+  # word_document
 
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, fig.align = "center")
-# knitr::opts_knit$set(root.dir = "C:/Users/bstaton/Desktop/Staton/1_critfc/analyses/cesrf-minijack-rates")
+knitr::opts_knit$set(root.dir = "C:/Users/bstaton/Desktop/Staton/1_critfc/analyses/cesrf-minijack-rates")
 ```
 
 # Power Analysis
@@ -58,20 +58,9 @@ progeny_wt_effect = c(0.18, 0.30, 0.33)
 ```{r sim-output}
 # read in the simulation output, produce basic summary stats, and prepare for plotting
 
-# read in/combine simulation output files
-unlist_dfs = function(list) {
-  # empty object
-  output = NULL
-  
-  # loop through list elements, combining the data frame in each with all previous
-  for (i in 1:length(list)) output = rbind(output, list[[i]])
-  
-  # return the output
-  return(output)
-}
 out_files = list.files("power-analysis", pattern = "\\.csv$", full.names = TRUE)
 out_list = lapply(out_files, function(x) read.csv(x))
-output = unlist_dfs(out_list)
+output = do.call(rbind, out_list)
 
 # calculate the average/range of the number of crosses with each parent number type
 mn_range = function(x) {
@@ -133,7 +122,7 @@ out_strong = out[out$effect == "Strong",]
 
 ```
 
-We performed a power analysis to characterize the power of our study design and analysis. That is, assuming there truly are differences in average minijack rates among sire ages, we wished to quantify the probability that our study would have assigned them statistical significance.
+We performed an analysis to characterize the power of our study design and analysis. That is, assuming there truly are differences in average minijack rates among sire ages, we wished to quantify the probability that our study would have assigned them statistical significance.
 
 ## Background
 
@@ -154,7 +143,7 @@ We considered factor (1) fixed, and set up a power analysis to investigate the i
 
 We used stochastic simulation to conduct the power analysis, since it is a straightforward way to test the performance of complex models (such as our binomial GLMMs) on data sets generated with known properties (Johnson et al. [2015](https://doi.org/10.1111/2041-210X.12306)). Under this approach, we simulated data that represented one year of our study, fitted the binomial GLMM we used for our analysis, determined whether each sire age comparison was significant, and replicated the process many times to measure the frequency with which null hypotheses were rejected.
 
-Data were simulated following the assumptions of the model, and study design features were intended to mimic the features of the 2015 and 2016 experiments, since we wished to evaluate the power of these more complex experiments (2014 differed by excluding age-1 sires). Biological features (e.g., progeny weight mean and variability, its effect on minijack status, etc.) were informed by the outcomes from all three years. In particular, we attempted to mimic these general features:
+We simulated data following the assumptions of the model and study design features were intended to mimic the features of the 2015 and 2016 experiments, since we wished to evaluate the power of these more complex experiments (2014 differed by excluding age-1 sires). Biological features (e.g., progeny weight mean and variability, its effect on minijack status, etc.) were informed by the outcomes from all three years. In particular, we attempted to mimic these general features:
 
 * **Sire age composition**: For 2015, the compositional breakdown was `r p_sires_15[1]` age-1, `r p_sires_15[2]` age-3, `r p_sires_15[3]` age-4, and `r p_sires_15[4]` age-5. For 2016, it was `r p_sires_16[1]` age-1, `r p_sires_16[2]` age-3, `r p_sires_16[3]` age-4, and `r p_sires_16[4]` age-5. To mimic this between-year variability in a key design feature, we randomly assigned sires to each of the four ages, with the expected distribution being 25% of each age. We forced there to be at least one sire of each age.
 * **Sire-specific replication**: For 2015 and 2016 combined, each sire was involved in between 1 and 5 crosses. The breakdown was: 1 cross (`r p_crosses_per_sire[1]`), 2 crosses (`r p_crosses_per_sire[2]`), 3 crosses (`r p_crosses_per_sire[3]`), 4 crosses (`r p_crosses_per_sire[4]`), and 5 crosses (`r p_crosses_per_sire[5]`). We mimicked this by giving each sire a random number of crosses (between 1 and 5) with these heterogeneous probabilities.
@@ -170,15 +159,15 @@ Four features of our study were manipulated for the power analysis to build the 
     * _Base_: 34 sires and 23 dams, leading to an average of `r base_cross_stats[1]` (range: `r base_cross_stats[2]` -- `r base_cross_stats[3]`) crosses per experiment
     * _Double_: 68 sires and 46 dams, leading to an average of `r double_cross_stats[1]` (range: `r double_cross_stats[2]` -- `r double_cross_stats[3]`) crosses per experiment
     * _Quadruple_: 136 sires and 92 dams, leading to an average of `r quadruple_cross_stats[1]` (range: `r quadruple_cross_stats[2]` -- `r quadruple_cross_stats[3]`) crosses per experiment
-2. **Progeny sample size**: In 2015/2016 combined the average number of male progeny assigned to a cross was `r round(mean(n_progeny), 1)`. We used three levels of progeny sample sizes:
+2. **Progeny sample size**: In 2015/2016 combined the average number of male progeny assigned to a cross was `r round(mean(n_progeny), 1)`. We used three levels of average progeny sample sizes:
    * _Base_: 22
    * _Double_: 44
    * _Quadruple_: 88
-3. **True effect of sire age**: We wished to represent the range of minimal sire age effects we would have deemed biologically significant if our model deemed them statistically significant, recognizing that if the model can detect small effects then, all else equal, it can detect larger effects with greater power. We used three levels of true effects represented as the expected minijack rates by sire age at the average progeny weight and in the absence of random effects:
-   * _No effect_: all sire ages have expected minijack rates of 50%. This case allows us to evaluate our experiment-wise Type I error rate. 
+3. **True effect of sire age**: We wished to represent the range of minimal sire age effects we would have deemed biologically significant if our model assigned them statistical significance, recognizing that if the model can detect small effects then, all else equal, it can detect larger effects with greater power. We used three levels of true effects represented as the expected minijack rates by sire age at the average progeny weight and in the absence of random effects:
+   * _No effect_: all sire ages have expected minijack rates of 50%. This case allowed us to evaluate our experiment-wise Type I error rate. 
    * _Weak effect_: 50% chance for age-1 sires, 45% for age-3, 40% for age-4, and 35% for age-5 
    * _Strong effect_: 50% chance for age-1 sires, 40% for age-3, 30% for age-4, and 20% for age-5 
-4. **True variability of parent-specific random effects**: The standard deviation of random effects was `r sire_RE[1]`, `r sire_RE[2]`, and `r sire_RE[3]` for sires and `r dam_RE[1]`, `r dam_RE[2]`, and `r dam_RE[3]` for dams in 2014, 2015, and 2016, respectively. As noted in our main text, these terms are quite high for logit-normal random variables, and are certainly higher than were anticipated during the planning of the study. Recognizing that between-cross variability may mask any true effect of sire age, we were interested in whether our study design would have much higher power if the variability was reduced.
+4. **True variability of parent-specific random effects**: The standard deviation of random effects was `r sire_RE[1]`, `r sire_RE[2]`, and `r sire_RE[3]` for sires and `r dam_RE[1]`, `r dam_RE[2]`, and `r dam_RE[3]` for dams in 2014, 2015, and 2016, respectively. As noted in our main text, these terms are quite high for logit-normal random variables, and are certainly higher than were anticipated during the planning of the study. Recognizing that between-cross variability may mask any true effect of sire age, we were interested in whether our study design would have much higher power if the variability was lower.
    * _Base_: the average values from 2014 -- 2016 were used: 0.85 for sires and 1 for dams.
    * _Half_: the average standard deviations were halved: 0.425 for sires and 0.5 for dams.
 
@@ -188,7 +177,7 @@ For the sample sizes, we must highlight that increasing the number of parents an
 
 ### P-values and Inference
 
-For the real data, we applied a parametric bootstrap approach to estimate the odds ratio and p-value for each sire age comparison. However, this approach is far too computationally intensive to be applied to the simulation-based power analysis. We therefore used a simpler approach for the simulated data which involves changing the reference level of the sire age factor and refitting the model. By default, sire age-1 is the reference level, and the p-values reported for comparisons between sire ages are all relative to this age. So to obtain p-values for the comparison between mean minijack rates for, e.g., sire age-3 and sire age-4, we "releveled" the sire age factor to be age-3 and re-fitted the model. This is shown in the R function below. 
+For the real data, we applied a parametric bootstrap approach to estimate the odds ratio and p-value for each sire age comparison. However, this approach is far too computationally intensive to be applied to the simulation-based power analysis. We therefore used a simpler approach for the simulated data which involves changing the reference level of the sire age factor and refitting the model. By default, sire age-1 is the reference level, and the p-values reported for comparisons between sire ages are all relative to this age. So to obtain p-values for the comparison between mean minijack rates for, e.g., sire age-3 and sire age-4, we "releveled" the sire age factor to be age-3 and re-fitted the model. This process is shown in the R function below. 
 
 We compared the p-values obtained using this approach and the bootstrap approach for the real data set to verify that this method gives similar inference to the method we used on the real data. We found that the two methods give very similar p-value estimates, as shown in the figure below (solid line is 1:1 equality). In particular, the assignment of significance vs. non-significance was identical between approaches. This high degree of similarity gave us confidence in using this simpler (but much computationally faster) method of obtaining p-values for the power analysis.
 
@@ -289,11 +278,11 @@ Each comparison is a two-tailed test between two given sire ages. There are 6 su
 *  Age-4 vs. age-5
 *  Age-4 vs. age-5
 
-The analysis calculated p-values for each comparison and counted the number of comparisons found to be significant at $\alpha$ = 0.05 (for each comparisons). We present the results organized by the power to find at least X significant comparisons, where X is between 1 and 6. For the "no effect" scenario, the "power" we present is interpreted as the experimental-wise Type I error rate when searching for at least X significant comparisons, because in reality there is no sire age effect. In the "weak" and "strong" effect scenarios, the "power" we calculate is the probability of detecting at least X significant comparisons, because we know that there truly is a sire age effect. 
+The analysis calculated p-values for each comparison and counted the number of comparisons found to be significant at $\alpha$ = 0.05 (for each comparisons). We present the results organized by the power to find at least X significant comparisons, where 1 $\leq$ X $\leq$ 6. For the "no effect" scenario, the "power" we present is interpreted as the experimental-wise Type I error rate when searching for at least X significant comparisons, because in reality there is no sire age effect. In the "weak" and "strong" effect scenarios, the "power" we calculate is the probability of detecting at least X significant comparisons, because we know that there truly is a sire age effect. 
 
 ### R Function
 
-We used a custom R function to carry out the simulation of data, model fitting, and inference for one year at a time. The function accepts several (self-explanatory) arguments to control some of the features described above.
+We used a custom R function to carry out the simulation of data, model fitting, and inference for one year at a time. The function accepts several (self-explanatory) arguments to control some of the features described above. Example argument values are provided so readers can assign these to objects and run the code in the function body line-by-line to see how it works.
 
 ```{r power-simulation-function, echo = TRUE}
 
@@ -344,19 +333,6 @@ simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cro
                  "age5" = c(0,0,0,1))
   rownames(DM_age) = c("1", "3", "4", "5")
   
-  ### DEFINE A BASIC HELPER FUNCTION ###
-  # FOR A LIST WHERE ELEMENTS ARE DATAFRAMES, UNLIST THEM AND COMBINE THEM INTO ONE DATA FRAME
-  unlist_dfs = function(list) {
-    # empty object
-    output = NULL
-    
-    # loop through list elements, combining the data frame in each with all previous
-    for (i in 1:length(list)) output = rbind(output, list[[i]])
-    
-    # return the output
-    return(output)
-  }
-  
   ### GENERATE RANDOM EXPERIMENTAL OUTCOMES ###
   
   # build the pool of sires: each will be used in at least one cross
@@ -388,7 +364,7 @@ simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cro
     tmp$cross_id = paste0(tmp$sire_id, "-", tmp$dam_id)
     tmp
   })
-  crosses = unlist_dfs(crosses)
+  crosses = do.call(rbind, crosses)
   
   # generate number of progeny per cross (number of binomial trials)
   # assume the number of cross-specific progeny is a Poisson random variable
@@ -422,7 +398,7 @@ simulate_experiment = function(n_total_sires, n_total_dams, mean_progeny_per_cro
     
     tmp
   })
-  dat = unlist_dfs(dat)
+  dat = do.call(rbind, dat)
   
   # create 3 data sets, differ only in which sire age is the reference group
   # this is so all contrasts can be obtained without bootstrap
@@ -566,7 +542,7 @@ power_plot = function(sig, sigma, legend = FALSE) {
 }
 ```
 
-### >= 1
+### $\geq$ 1
 
 ```{r, fig.width = 4.5, fig.height = 6}
 par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
@@ -574,7 +550,7 @@ power_plot("sig1", "Base", TRUE); power_plot("sig1", "Half")
 mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
 ```
 
-### >= 2
+### $\geq$ 2
 
 ```{r, fig.width = 4.5, fig.height = 6}
 par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
@@ -582,7 +558,7 @@ power_plot("sig2", "Base", TRUE); power_plot("sig2", "Half")
 mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
 ```
 
-### >= 3
+### $\geq$ 3
 
 ```{r, fig.width = 4.5, fig.height = 6}
 par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
@@ -590,7 +566,7 @@ power_plot("sig3", "Base", TRUE); power_plot("sig3", "Half")
 mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
 ```
 
-### >= 4
+### $\geq$ 4
 
 ```{r, fig.width = 4.5, fig.height = 6}
 par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
@@ -598,7 +574,7 @@ power_plot("sig4", "Base", TRUE); power_plot("sig4", "Half")
 mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
 ```
 
-### >= 5
+### $\geq$ 5
 
 ```{r, fig.width = 4.5, fig.height = 6}
 par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
@@ -606,7 +582,7 @@ power_plot("sig5", "Base", TRUE); power_plot("sig5", "Half")
 mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.15, 0.85), font = 2)
 ```
 
-### >= 6
+### $\geq$ 6
 
 ```{r, fig.width = 4.5, fig.height = 6}
 par(mfcol = c(3,2), mgp = c(2,0.35,0), tcl = -0.15, mar = c(2,2,2,2), oma = c(2,2,2,0), cex.axis = 0.9)
@@ -621,8 +597,8 @@ mtext(side = 3, outer = TRUE, c("Base Random SD", "Half Random SD"), adj = c(0.1
 _General patterns_
 
 *  All else equal, increasing the effect size increased power, as did reducing variability -- these were expected findings, but quantifying them is still informative.
-*  Adding more parents to the study (conducting more crosses) gains more power than adding more progeny. For example, base parent sample size with quadruple progeny size often gave less power than double parent size with base progeny size.
-*  The Type I error rate is approximately 0.25 for searching for at least 1 significant comparisons, but declines rapidly when searching for more comparisons. Further, it is largely unaffected by the amount of random variability or sample size.
+*  More power was gained by adding more parents to the study (conducting more crosses) than by adding more progeny. For example, base parent sample size with quadruple progeny size often gave less power than double parent size with base progeny size.
+*  The Type I error rate is approximately 0.25 for searching for at least 1 significant comparison, but declined rapidly when searching for more comparisons. Further, it was largely unaffected by the amount of random variability or sample size.
 
 _Specific findings relative to our sample sizes_
 
