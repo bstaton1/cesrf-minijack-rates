@@ -1,6 +1,10 @@
 # cesrf-minijack-rates
- 
- This repository houses the code and data for conducting the minijack rate analyses found in the manuscript titled: _Precocious maturation of hatchery-raised spring Chinook Salmon as age-2 minijacks is not detectably affected by sire age_ by P.F. Galbreath, C.A. Stockton, C.M. Knudsen, L.R. Medeiros, I.J. Koch, B.A. Staton, W.J. Bosch, H. Nuetzel, and A.L. Pierce.
+
+This repository houses the code and data for conducting the minijack rate analyses found in the manuscript titled: _Precocious maturation of hatchery-raised spring Chinook Salmon as age-2 minijacks is not detectably affected by sire age_ by P. F. Galbreath, H. M. Nuetzel, B. A. Staton, C. A. Stockton, C. M. Knudsen, L. R. Medeiros, I. J. Koch, W. J. Bosch, and A. L. Pierce published in _Transactions of the American Fisheries Society_.
+
+[![ArticleDOI](https://img.shields.io/badge/Article%20DOI-10.1002%2Ftafs.10343-blue)](https://doi.org/10.1002/tafs.10343)
+
+[![GitHub Repo Archive DOI](https://img.shields.io/badge/GitHub%20Repo%20Archive%20DOI-10.5281%2Fzenodo.4730682-blue)](https://doi.org/10.5281/zenodo.4730682)
 
 ## File structure
 
